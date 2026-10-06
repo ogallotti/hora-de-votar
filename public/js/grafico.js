@@ -3,13 +3,13 @@
 // Na entrada o dia é revivido: os eleitores acendem na ordem em que votaram; depois alguns piscam, como gente votando.
 // Um só gráfico na página: os dados mudam (Brasil → local → seção), as curvas se transformam e o dia recomeça.
 // Régua: arraste, toque ou setas do teclado; avisa quem está ouvindo (aoMover) a cada faixa.
-import { hora, OFICIAIS } from "./modelo.js";
+import { hora, OFICIAIS, FAIXA_MIN, JANELA } from "./modelo.js";
 import { caminho, tangentes, avalia } from "./curva.js";
 
 const NS = "http://www.w3.org/2000/svg";
-const N = OFICIAIS + 4; // até 1 h depois do encerramento (quem ainda estava na fila)
-const MIN = N * 15;
-const COR = { r1: "#9aa29e", r1Forte: "#4b524e", verde: "#0e7a45", brilho: "#3fd283" };
+const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
+const MIN = N * FAIXA_MIN;
+const COR = { r1: "#b5bbb7", r1Forte: "#6f7772", verde: "#45c07f", verdeForte: "#0e7a45", brilho: "#6fe0a3" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
@@ -43,7 +43,7 @@ function pontosDe(eleitores, v, escala) {
   const out = [];
   v.forEach((n, i) => {
     const q = Math.round(n / escala);
-    for (let a = 0; a < q; a++) { const k = out.length; out.push({ m: i * 15 + ((a + acaso(k, 3)) / q) * 15, j: acaso(k, 7) * 2 - 1, k }); }
+    for (let a = 0; a < q; a++) { const k = out.length; out.push({ m: i * FAIXA_MIN + ((a + acaso(k, 3)) / q) * FAIXA_MIN, j: acaso(k, 7) * 2 - 1, k }); }
   });
   return out;
 }
@@ -88,20 +88,22 @@ export class Grafico {
       grade: el("g", {}, svg),
       encerrado: el("rect", { class: "g-encerrado" }, svg),
       encRot: el("text", { class: "g-encerrado-rot", "text-anchor": "middle" }, svg),
-      melhor: el("rect", { class: "g-melhor", rx: 12 }, svg),
-      segundo: el("rect", { class: "g-segundo", rx: 12 }, svg),
       r1a: el("path", { class: "g-r1-area" }, svg),
       r2a: el("path", { class: "g-r2-area" }, svg),
+      pior: el("rect", { class: "g-pior", rx: 12 }, svg),
+      pior2: el("rect", { class: "g-pior", rx: 12 }, svg),
+      segundo: el("rect", { class: "g-segundo", rx: 12 }, svg),
+      melhor: el("rect", { class: "g-melhor", rx: 12 }, svg),
       eixo: el("g", {}, svg),
       mira: el("line", { class: "g-mira" }, svg),
-      pico: el("circle", { class: "g-pico", r: 4.5 }, svg),
     };
     this.cv = document.createElement("canvas");
     this.cv.className = "g-pontos";
     a.appendChild(this.cv);
     this.ctx = this.cv.getContext("2d");
     const etq = (cls, txt = "") => { const d = document.createElement("div"); d.className = `etiqueta ${cls}`; d.textContent = txt; a.appendChild(d); return d; };
-    this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), segundo: etq("etiqueta-segundo", "também bom"), pico: etq("etiqueta-pico", "pico"), hora: etq("etiqueta-hora") };
+    this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), segundo: etq("etiqueta-segundo", "também bom"),
+      pior: etq("etiqueta-pior", "evite"), pior2: etq("etiqueta-pior", "evite"), hora: etq("etiqueta-hora") };
 
     const pos = (ev) => {
       const r = svg.getBoundingClientRect();
@@ -115,7 +117,7 @@ export class Grafico {
     a.addEventListener("pointerup", solta);
     a.addEventListener("pointercancel", solta);
     a.addEventListener("keydown", (ev) => {
-      const d = { ArrowRight: 1, ArrowLeft: -1, ArrowUp: 1, ArrowDown: -1, PageUp: 4, PageDown: -4 }[ev.key];
+      const d = { ArrowRight: 1, ArrowLeft: -1, ArrowUp: 1, ArrowDown: -1, PageUp: JANELA, PageDown: -JANELA }[ev.key];
       if (d == null && ev.key !== "Home" && ev.key !== "End") return;
       ev.preventDefault();
       this.usuario();
@@ -132,9 +134,9 @@ export class Grafico {
    */
   define(dados, modo = "transforma") {
     this.h0 = dados.h0 ?? 8;
-    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, segundo: dados.segundo ?? null };
+    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, segundo: dados.segundo ?? null, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
     this.pts = pontosDe(dados.eleitores, ajusta(dados.v), dados.escala || 1);
-    this.densidade = this.pts.length / (OFICIAIS * 15); // pontos por minuto
+    this.densidade = this.pts.length / (OFICIAIS * FAIXA_MIN); // pontos por minuto
     this.W = null; // tamanho dos pontos depende da densidade
     this.piscas = [];
     if (reduz() || modo === "direto") { this.cur = alvo; this.tween = null; this.dia = null; this.relogio = MIN; this.desenha(); this.liga(); return; }
@@ -157,6 +159,8 @@ export class Grafico {
         o2: tw.alvo.o2.map((v, i) => lerp(tw.de.o2[i], v)),
         melhor: lerp(tw.de.melhor, tw.alvo.melhor),
         segundo: tw.alvo.segundo == null ? null : lerp(tw.de.segundo ?? tw.alvo.segundo, tw.alvo.segundo),
+        pior: tw.alvo.pior == null ? null : lerp(tw.de.pior ?? tw.alvo.pior, tw.alvo.pior),
+        pior2: tw.alvo.pior2 == null ? null : lerp(tw.de.pior2 ?? tw.alvo.pior2, tw.alvo.pior2),
       };
       if (t >= 1) { this.cur = tw.alvo; this.tween = null; }
       mexeu = true;
@@ -204,7 +208,7 @@ export class Grafico {
     if (i !== antes) {
       this.aoMover?.(i, this.cur);
       const m = Math.round(this.cur.melhor);
-      const dentro = (k) => k != null && k >= m && k < m + 4;
+      const dentro = (k) => k != null && k >= m && k < m + JANELA;
       if (avisa && dentro(i) && !dentro(antes)) this.aoEntrarMelhor?.();
     }
   }
@@ -243,16 +247,16 @@ export class Grafico {
     this.cv.style.width = `${W}px`; this.cv.style.height = `${H}px`;
     // pontos menores e faixa mais larga quando há muitos eleitores por minuto
     const porPx = (this.densidade || 0.4) * MIN / (W - m.l - m.r);
-    this.raio = Math.max(1.3, Math.min(2.6, 2.7 - porPx * 0.9));
+    this.raio = Math.max(0.9, Math.min(1.7, 1.8 - porPx * 0.6));
     this.espalha = Math.max(2.5, Math.min(16, 1.5 + porPx * 6));
     const r = this.raio;
     this.sp = {
       r1: sprite(r, COR.r1, 0, dpr),
       r1Forte: sprite(r * 1.25, COR.r1Forte, 0, dpr),
       verde: sprite(r, COR.verde, r * 1.6, dpr, "38"),
-      verdeForte: sprite(r * 1.25, COR.verde, r * 2, dpr, "55"),
+      verdeForte: sprite(r * 1.3, COR.verdeForte, r * 2, dpr, "55"),
       brilho: sprite(r * 1.2, COR.brilho, r * 4, dpr, "88"),
-      brilhoCinza: sprite(r * 1.2, "#7d8580", r * 3, dpr, "55"),
+      brilhoCinza: sprite(r * 1.2, "#9aa29e", r * 3, dpr, "55"),
     };
     const svg = this.svg, n = this.n;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
@@ -261,7 +265,7 @@ export class Grafico {
       el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: this.y(v), y2: this.y(v) }, n.grade);
       el("text", { class: "g-eixo", x: m.l - 8, y: this.y(v) + 4, "text-anchor": "end" }, n.eixo).textContent = v ? `${v}%` : "0";
     }
-    const passo = estreito ? 8 : 4;
+    const passo = (estreito ? 120 : 60) / FAIXA_MIN; // rótulo a cada 1 h (2 h no celular)
     for (let i = 0; i <= OFICIAIS; i += passo) {
       el("text", { class: "g-eixo", x: this.xb(i), y: H - 8, "text-anchor": i === 0 ? "start" : "middle" }, n.eixo).textContent = hora(i, this.h0);
     }
@@ -282,24 +286,28 @@ export class Grafico {
     n.r1a.setAttribute("d", caminho(p1) + fecha(p1));
     n.r2a.setAttribute("d", caminho(p2) + fecha(p2));
     this.t1 = tangentes(c.o1); this.t2 = tangentes(c.o2.slice(0, OFICIAIS));
-    const banda = (r, ini) => {
+    const banda = (r, ini, fim = ini + JANELA) => {
       if (ini == null) { r.setAttribute("width", 0); return null; }
-      const b0 = this.xb(ini), b1 = this.xb(ini + 4);
+      const b0 = this.xb(ini), b1 = this.xb(fim);
       Object.entries({ x: b0 + 1, y: m.t - 8, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 10 }).forEach(([k, v]) => r.setAttribute(k, v));
       return (b0 + b1) / 2;
     };
-    const cm = banda(n.melhor, c.melhor), cs = banda(n.segundo, c.segundo);
-    this.e.melhor.style.left = `${cm}px`; this.e.melhor.style.top = `${m.t - 8}px`;
-    this.e.segundo.style.opacity = cs == null || Math.abs(cs - cm) < 132 ? 0 : 1;
-    if (cs != null) { this.e.segundo.style.left = `${cs}px`; this.e.segundo.style.top = `${m.t - 8}px`; }
-    let pk = 0;
-    for (let i = 0; i < OFICIAIS; i++) if (c.o1[i] > c.o1[pk]) pk = i;
-    const px = this.x(pk), topo = this.y(c.o1[pk]) - this.espalha - 9;
-    n.pico.setAttribute("cx", px); n.pico.setAttribute("cy", topo);
-    n.pico.style.opacity = this.mostra.r1 && c.o1[pk] > 0 ? 1 : 0;
-    const longe = Math.abs(px - cm) > 80 && (cs == null || Math.abs(px - cs) > 80 || this.e.segundo.style.opacity === "0");
-    this.e.pico.style.left = `${px}px`; this.e.pico.style.top = `${topo + 6}px`;
-    this.e.pico.style.opacity = longe && this.mostra.r1 && c.o1[pk] > 0 ? 1 : 0;
+    // faixas: melhor (verde), também bom (tracejada), evite (avermelhadas); rótulos que colidem somem por prioridade
+    // as duas piores horas encostadas viram uma faixa só
+    const juntas = c.pior != null && c.pior2 != null && Math.abs(c.pior2 - c.pior) <= JANELA + 1;
+    const pIni = juntas ? Math.min(c.pior, c.pior2) : c.pior, pFim = juntas ? Math.max(c.pior, c.pior2) + JANELA : c.pior + JANELA;
+    const faixas = [
+      ["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)],
+      ["segundo", banda(n.segundo, c.segundo)], ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)],
+    ];
+    const postos = [];
+    for (const [k, x] of faixas) {
+      const e = this.e[k];
+      const cabe = x != null && postos.every((p) => Math.abs(p - x) > 118);
+      e.style.opacity = cabe ? 1 : 0;
+      if (x != null) { e.style.left = `${x}px`; e.style.top = `${m.t - 8}px`; }
+      if (cabe) postos.push(x);
+    }
     this.pontos(agora);
     this.desenhaMira();
   }
@@ -314,10 +322,10 @@ export class Grafico {
       const w = img.width * esc, h = img.height * esc;
       ctx.drawImage(img, x * dpr - w / 2, y * dpr - h / 2, w, h);
     };
-    const fimOficial = OFICIAIS * 15, rel = this.relogio, foco = this.i;
+    const fimOficial = OFICIAIS * FAIXA_MIN, rel = this.relogio, foco = this.i;
     const o2 = c.o2.slice(0, OFICIAIS);
     const lugar = (p, segundo) => {
-      const u = p.m / 15 - 0.5;
+      const u = p.m / FAIXA_MIN - 0.5;
       const v = segundo ? avalia(o2, this.t2, Math.min(u, OFICIAIS - 1)) : avalia(c.o1, this.t1, u);
       return [this.xm(p.m), this.y(Math.max(0, Math.min(100, v))) + p.j * this.espalha];
     };
@@ -325,7 +333,7 @@ export class Grafico {
       if (p.m > rel) break;
       const idade = rel - p.m; // minutos desde que o eleitor "chegou" (revivendo o dia)
       const nasce = this.dia ? Math.max(0, 1 - idade / 40) : 0;
-      const realce = foco != null && Math.floor(p.m / 15) === foco;
+      const realce = foco != null && Math.floor(p.m / FAIXA_MIN) === foco;
       if (this.mostra.r1) {
         const [x, y] = lugar(p, false);
         poe(realce ? sp.r1Forte : sp.r1, x, y, 0.55 + 0.45 * (1 - nasce) * (realce ? 1 : 0.8));

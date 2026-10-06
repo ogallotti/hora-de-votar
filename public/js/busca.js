@@ -117,7 +117,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
     }
     if (mun) {
       const d = await locaisDaCidade(mun.cd);
-      const locais = d.locais.filter((l) => l.v);
+      const locais = d.locais.filter((l) => l.ns);
       // seções por número
       const numeroSo = !zona && !secao && toks.length === 1 && /^\d+$/.test(toks[0]) ? +toks[0] : null;
       const sAlvo = secao ?? numeroSo;
@@ -270,7 +270,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
       const cands = [];
       for (const m of muns) {
         const d = await locaisDaCidade(m.cd).catch(() => null);
-        for (const l of d?.locais || []) if (l.g && l.v) cands.push([distancia(eu, l.g), l, m]);
+        for (const l of d?.locais || []) if (l.g && l.ns) cands.push([distancia(eu, l.g), l, m]);
       }
       cands.sort((a, b) => a[0] - b[0]);
       perto.classList.remove("carregando");

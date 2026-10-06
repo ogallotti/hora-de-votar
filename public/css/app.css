@@ -1,4 +1,10 @@
 @font-face {
+  font-family: "Unbounded";
+  src: url("/fonts/unbounded-800.woff2") format("woff2");
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
   font-family: "Geist";
   src: url("/fonts/geist.woff2") format("woff2");
   font-weight: 100 900;
@@ -51,8 +57,18 @@ button { -webkit-tap-highlight-color: transparent; }
 
 /* ------------------------------------------------------------ topo */
 .topo { display: flex; align-items: center; justify-content: space-between; max-width: 1240px; width: 100%; margin: 0 auto; padding: 20px 20px 0; }
-.marca { font-weight: 650; font-size: 19px; letter-spacing: -.04em; color: var(--tinta); text-decoration: none; }
-.marca span { color: var(--r1); font-weight: 500; }
+/* marca: "votar" é a tecla CONFIRMA da urna */
+.marca {
+  display: inline-flex; align-items: center; gap: .32em; font: 800 17px/1 "Unbounded", "Geist", sans-serif;
+  letter-spacing: -.035em; color: var(--tinta); text-decoration: none; white-space: nowrap;
+}
+.marca-tecla {
+  display: inline-block; padding: .38em .55em .44em; border-radius: 7px; background: var(--tecla); color: var(--tecla-texto);
+  font-size: .78em; letter-spacing: .04em; text-transform: uppercase;
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / .18), inset 0 1px 0 rgb(255 255 255 / .45), 0 2px 6px -2px rgb(14 122 69 / .55);
+  transition: transform .12s, box-shadow .12s;
+}
+.marca:active .marca-tecla { transform: translateY(2px); box-shadow: inset 0 -1px 0 rgb(0 0 0 / .18), 0 1px 2px rgb(0 0 0 / .2); }
 .topo-dir { display: flex; align-items: center; gap: 6px; }
 .contagem { margin: 0; font-size: 13.5px; color: var(--tinta-2); background: var(--fundo-2); border-radius: 999px; padding: 6px 12px; font-variant-numeric: tabular-nums; }
 .contagem strong { color: var(--tinta); font-weight: 600; }
@@ -70,6 +86,7 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .sub { margin: 16px auto 0; max-width: 54ch; font-size: clamp(16px, 2vw, 18.5px); color: var(--tinta-2); text-wrap: balance; }
 .sub strong { color: var(--tinta); font-weight: 600; }
 .sub .tb { color: var(--verde-texto); font-weight: 600; }
+.sub .tr { color: #b3261e; font-weight: 600; }
 
 /* entrada da página: o conteúdo sobe em sequência */
 @media (prefers-reduced-motion: no-preference) {
@@ -152,8 +169,8 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .secoes-rot { font-size: 14.5px; font-weight: 600; color: var(--tinta-2); }
 .chips {
   display: flex; flex-wrap: nowrap; gap: 6px; max-width: min(860px, 100%); overflow-x: auto; scrollbar-width: none; padding: 2px 24px 6px;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
-          mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 28px), transparent);
+          mask-image: linear-gradient(90deg, transparent, #000 10px, #000 calc(100% - 28px), transparent);
 }
 .chips::-webkit-scrollbar { display: none; }
 .chip { flex-shrink: 0; }
@@ -195,8 +212,9 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .g-r1-linha { fill: none; stroke: var(--r1); stroke-width: 1.5; }
 .g-r2-area { fill: url(#grad-r2); }
 .g-r2-linha { fill: none; stroke: var(--verde); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.g-melhor { fill: rgb(14 122 69 / .07); }
-.g-segundo { fill: none; stroke: var(--verde); stroke-opacity: .35; stroke-width: 1.5; stroke-dasharray: 4 5; }
+.g-melhor { fill: rgb(14 122 69 / .13); stroke: rgb(14 122 69 / .55); stroke-width: 1.5; }
+.g-pior { fill: rgb(217 72 59 / .09); stroke: rgb(217 72 59 / .4); stroke-width: 1.25; }
+.g-segundo { fill: rgb(14 122 69 / .05); stroke: var(--verde); stroke-opacity: .45; stroke-width: 1.5; stroke-dasharray: 4 5; }
 .g-pico { fill: var(--laranja); stroke: var(--fundo); stroke-width: 2.5; }
 .g-mira { stroke: var(--tinta); stroke-width: 1; stroke-opacity: .5; }
 .g-k1 { fill: var(--fundo); stroke: var(--r1); stroke-width: 2.5; }
@@ -211,9 +229,10 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   position: absolute; top: 0; transform: translate(-50%, -130%); padding: 5px 10px; border-radius: 999px; white-space: nowrap;
   font-size: 12.5px; font-weight: 600; pointer-events: none; transition: left .9s var(--suave), opacity .3s;
 }
-.etiqueta-melhor { background: var(--verde); color: #fff; }
+.etiqueta-melhor { background: var(--verde); color: #fff; font-size: 13px; padding: 6px 12px; box-shadow: 0 6px 16px -6px rgb(14 122 69 / .6); }
 .etiqueta-melhor::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
 .etiqueta-segundo { background: var(--fundo); color: var(--verde-texto); border: 1px solid rgb(14 122 69 / .3); font-weight: 550; }
+.etiqueta-pior { background: #fff; color: #b3261e; border: 1px solid rgb(217 72 59 / .45); font-weight: 600; }
 .etiqueta-pico { background: none; color: var(--laranja-texto); padding: 0; transform: translate(-50%, -170%); }
 .etiqueta-hora {
   background: var(--tinta); color: var(--fundo); font-variant-numeric: tabular-nums; transition: opacity .2s;
@@ -279,7 +298,12 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .btn:hover { border-color: var(--tinta-3); }
 .btn:active { transform: scale(.96); }
 .btn-ic { width: 48px; padding: 0; }
-.btn-ic .ic { width: 20px; height: 20px; }
+.btn-ic .ic { width: 19px; height: 19px; }
+.btn .ic { width: 19px; height: 19px; }
+.btn-zap { background: #25d366; border-color: #25d366; color: #0a2e18; }
+.btn-zap:hover { border-color: #1ebe5a; background: #1ebe5a; }
+.btn-x .ic { color: #000; width: 17px; height: 17px; }
+.btn-tg .ic { color: #26a5e4; width: 20px; height: 20px; }
 .btn-principal { background: var(--tinta); border-color: var(--tinta); color: var(--fundo); padding: 0 24px; }
 .btn-principal:hover { border-color: var(--tinta); background: #262b28; }
 .aviso { min-height: 22px; margin: 10px 0 0; text-align: center; font-size: 14px; color: var(--verde-texto); }
