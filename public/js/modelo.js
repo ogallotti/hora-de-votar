@@ -1,12 +1,12 @@
-// Modelo do site: curvas por faixa de 5 min, simulação do 2º turno e recomendação de horário.
+// Modelo do site: curvas por faixa de FAIXA_MIN minutos, simulação do 2º turno e recomendação de horário.
 // Funções puras (sem DOM): rodam no navegador e nos testes (node --test).
 
-export const FAIXA_MIN = 5;
+export const FAIXA_MIN = 10; // mudar junto com FAIXA no build (scripts/build_data.py) e VERSAO_DADOS em app.js
 /** UFs com 2º turno para governador em 2026 (resultado oficial do 1º turno); nas demais, só presidente. */
 export const GOV2 = ["AC", "AM", "DF", "ES", "RJ", "RN", "TO"];
-export const OFICIAIS = 108; // 9 h de votação (8h às 17h de Brasília, na hora local da urna), em faixas de 5 min
+export const OFICIAIS = 540 / FAIXA_MIN; // 9 h de votação (8h às 17h de Brasília, na hora local da urna)
 const MESA_PADRAO = 20;     // s entre um eleitor sair e o próximo ser identificado, quando há fila
-export const JANELA = 12;   // 12 faixas = 1 h
+export const JANELA = 60 / FAIXA_MIN; // 1 h
 
 /**
  * Procura (chegadas) de cada faixa oficial numa urna, a mesma do 1º turno. Simples:
@@ -55,12 +55,12 @@ export function simula2(chegadas, t2, me = MESA_PADRAO) {
     }
     o.push(Math.min(100, Math.round((100 * ocupado) / (FAIXA_MIN * 60))));
     espera.push(esp / FAIXA_MIN);
-    if (k > OFICIAIS + 72) break; // segurança
+    if (k > OFICIAIS + 360 / FAIXA_MIN) break; // segurança
   }
   return { o, espera };
 }
 
-const FIM = 24; // 2 h finais, onde entra quem já estava na fila no encerramento
+const FIM = 120 / FAIXA_MIN; // 2 h finais, onde entra quem já estava na fila no encerramento
 
 /** Chegadas por faixa oficial: o 1º turno, com quem votou depois do encerramento devolvido às 2 últimas horas. */
 export function demanda(v) {
@@ -79,9 +79,9 @@ export function demanda(v) {
 
 /**
  * % de eleitores que pegaram fila em cada faixa (1º turno, medido): soma q e v das faixas vizinhas antes de dividir,
- * porque numa urna cada faixa de 5 min tem poucos eleitores. Faixa sem ninguém votando = urna livre (0%).
+ * porque numa urna cada faixa tem poucos eleitores. Faixa sem ninguém votando = urna livre (0%).
  */
-export function chanceFila(v, q, r = 3) {
+export function chanceFila(v, q, r = Math.max(1, Math.round(15 / FAIXA_MIN))) {
   return v.map((_, i) => {
     let sq = 0, sv = 0;
     for (let j = i - r; j <= i + r; j++) if (j >= 0 && j < v.length) { sq += q[j] || 0; sv += v[j] || 0; }
@@ -90,7 +90,7 @@ export function chanceFila(v, q, r = 3) {
 }
 
 /** Média móvel centrada (±15 min), para a recomendação não depender de uma faixa isolada. */
-export function suaviza(xs, r = 3) {
+export function suaviza(xs, r = Math.max(1, Math.round(15 / FAIXA_MIN))) {
   return xs.map((_, i) => {
     let s = 0, n = 0;
     for (let j = i - r; j <= i + r; j++) if (j >= 0 && j < xs.length) { s += xs[j]; n++; }
@@ -99,13 +99,13 @@ export function suaviza(xs, r = 3) {
 }
 
 /**
- * Melhor e pior hora cheia dentro do horário oficial (janela de 1 h que começa em qualquer faixa), e a segunda
- * melhor sem sobrepor a primeira (para não mandar todo mundo para o mesmo horário); o mesmo para as duas piores.
+ * Melhor e pior hora cheia dentro do horário oficial (janela de 1 h que começa em qualquer faixa), e a segunda pior
+ * sem sobrepor a primeira (as duas formam a faixa "evite").
  * Termina no máximo 15 min antes do encerramento: chegar em cima da hora é arriscado.
  */
 export function horarios(o) {
   const so = suaviza(o.slice(0, OFICIAIS).concat(Array(Math.max(0, OFICIAIS - o.length)).fill(0)));
-  const ultimaIni = OFICIAIS - JANELA - 3; // 15 min antes do encerramento
+  const ultimaIni = OFICIAIS - JANELA - Math.ceil(15 / FAIXA_MIN); // termina pelo menos 15 min antes do encerramento
   const media = (i) => so.slice(i, i + JANELA).reduce((a, b) => a + b, 0) / JANELA;
   let melhor = 0, pior = 0, mMelhor = Infinity, mPior = -Infinity;
   for (let i = 0; i <= ultimaIni; i++) {
@@ -113,19 +113,13 @@ export function horarios(o) {
     if (m < mMelhor - 0.5) { mMelhor = m; melhor = i; } // empate: o mais cedo
     if (m > mPior + 0.5) { mPior = m; pior = i; }
   }
-  let segundo = null, mSegundo = Infinity;
-  for (let i = 0; i <= ultimaIni; i++) {
-    if (Math.abs(i - melhor) < JANELA) continue;
-    const m = media(i);
-    if (m < mSegundo - 0.5) { mSegundo = m; segundo = i; }
-  }
   let pior2 = null, mPior2 = -Infinity;
   for (let i = 0; i <= ultimaIni; i++) {
     if (Math.abs(i - pior) < JANELA) continue;
     const m = media(i);
     if (m > mPior2 + 0.5) { mPior2 = m; pior2 = i; }
   }
-  return { melhor, pior, mMelhor, mPior, segundo, mSegundo, pior2, mPior2 };
+  return { melhor, pior, mMelhor, mPior, pior2, mPior2 };
 }
 
 /**
@@ -175,7 +169,7 @@ export function fator(t1, t2, me = MESA_PADRAO) {
 export function analisa(d, h0 = 8, perfil = null) {
   const ns = d.ns || 1;
   const v = d.v.map((x) => x / ns); // por urna
-  const o1 = chanceFila(d.v, d.q, ns > 1 ? 3 : 6); // ±15 min num local, ±30 min numa urna só
+  const o1 = chanceFila(d.v, d.q, Math.max(1, Math.round((ns > 1 ? 15 : 30) / FAIXA_MIN))); // ±15 min num local, ±30 min numa urna só
   const t2 = d.t2 ?? (d.t1 ? d.t1 * 0.4 : 40);
   const { o: sim } = simula2(procura(v, o1, perfil, d.t1, d.me), t2, d.me);
   const o2 = suaviza(sim).map(Math.round);

@@ -54,7 +54,7 @@ export class Grafico {
     this.aoMover = aoMover;
     this.aoEntrarMelhor = aoEntrarMelhor;
     this.h0 = 8;
-    this.cur = { o1: ajusta(), o2: ajusta(), melhor: 0, segundo: null };
+    this.cur = { o1: ajusta(), o2: ajusta(), melhor: 0, pior: null, pior2: null };
     this.pts = [];
     this.i = null;
     this.mexeu = false;
@@ -92,7 +92,6 @@ export class Grafico {
       r2a: el("path", { class: "g-r2-area" }, svg),
       pior: el("rect", { class: "g-pior", rx: 12 }, svg),
       pior2: el("rect", { class: "g-pior", rx: 12 }, svg),
-      segundo: el("rect", { class: "g-segundo", rx: 12 }, svg),
       melhor: el("rect", { class: "g-melhor", rx: 12 }, svg),
       eixo: el("g", {}, svg),
       mira: el("line", { class: "g-mira" }, svg),
@@ -102,8 +101,7 @@ export class Grafico {
     a.appendChild(this.cv);
     this.ctx = this.cv.getContext("2d");
     const etq = (cls, txt = "") => { const d = document.createElement("div"); d.className = `etiqueta ${cls}`; d.textContent = txt; a.appendChild(d); return d; };
-    this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), segundo: etq("etiqueta-segundo", "também bom"),
-      pior: etq("etiqueta-pior", "evite"), pior2: etq("etiqueta-pior", "evite"), hora: etq("etiqueta-hora") };
+    this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), pior: etq("etiqueta-pior", "evite"), pior2: etq("etiqueta-pior", "evite"), hora: etq("etiqueta-hora") };
 
     const pos = (ev) => {
       const r = svg.getBoundingClientRect();
@@ -129,12 +127,12 @@ export class Grafico {
   usuario() { this.mexeu = true; cancelAnimationFrame(this.passeio); }
 
   /**
-   * dados: {h0, o1, o2, melhor, segundo, eleitores (minuto de cada eleitor desde a abertura) | v + escala (eleitores por ponto)}
+   * dados: {h0, o1, o2, melhor, pior, pior2, eleitores (minuto de cada eleitor desde a abertura) | v + escala (eleitores por ponto)}
    * modo: "entrada" (o dia é revivido), "transforma" (curvas mudam e o dia recomeça) ou "direto".
    */
   define(dados, modo = "transforma") {
     this.h0 = dados.h0 ?? 8;
-    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, segundo: dados.segundo ?? null, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
+    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
     this.pts = pontosDe(dados.eleitores, ajusta(dados.v), dados.escala || 1);
     this.densidade = this.pts.length / (OFICIAIS * FAIXA_MIN); // pontos por minuto
     this.W = null; // tamanho dos pontos depende da densidade
@@ -158,7 +156,6 @@ export class Grafico {
         o1: tw.alvo.o1.map((v, i) => lerp(tw.de.o1[i], v)),
         o2: tw.alvo.o2.map((v, i) => lerp(tw.de.o2[i], v)),
         melhor: lerp(tw.de.melhor, tw.alvo.melhor),
-        segundo: tw.alvo.segundo == null ? null : lerp(tw.de.segundo ?? tw.alvo.segundo, tw.alvo.segundo),
         pior: tw.alvo.pior == null ? null : lerp(tw.de.pior ?? tw.alvo.pior, tw.alvo.pior),
         pior2: tw.alvo.pior2 == null ? null : lerp(tw.de.pior2 ?? tw.alvo.pior2, tw.alvo.pior2),
       };
@@ -292,13 +289,13 @@ export class Grafico {
       Object.entries({ x: b0 + 1, y: m.t - 8, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 10 }).forEach(([k, v]) => r.setAttribute(k, v));
       return (b0 + b1) / 2;
     };
-    // faixas: melhor (verde), também bom (tracejada), evite (avermelhadas); rótulos que colidem somem por prioridade
+    // faixas: melhor (verde) e evite (avermelhadas); rótulos que colidem somem por prioridade
     // as duas piores horas encostadas viram uma faixa só
     const juntas = c.pior != null && c.pior2 != null && Math.abs(c.pior2 - c.pior) <= JANELA + 1;
     const pIni = juntas ? Math.min(c.pior, c.pior2) : c.pior, pFim = juntas ? Math.max(c.pior, c.pior2) + JANELA : c.pior + JANELA;
     const faixas = [
       ["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)],
-      ["segundo", banda(n.segundo, c.segundo)], ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)],
+      ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)],
     ];
     const postos = [];
     for (const [k, x] of faixas) {

@@ -214,7 +214,6 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .g-r2-linha { fill: none; stroke: var(--verde); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .g-melhor { fill: rgb(14 122 69 / .13); stroke: rgb(14 122 69 / .55); stroke-width: 1.5; }
 .g-pior { fill: rgb(217 72 59 / .09); stroke: rgb(217 72 59 / .4); stroke-width: 1.25; }
-.g-segundo { fill: rgb(14 122 69 / .05); stroke: var(--verde); stroke-opacity: .45; stroke-width: 1.5; stroke-dasharray: 4 5; }
 .g-pico { fill: var(--laranja); stroke: var(--fundo); stroke-width: 2.5; }
 .g-mira { stroke: var(--tinta); stroke-width: 1; stroke-opacity: .5; }
 .g-k1 { fill: var(--fundo); stroke: var(--r1); stroke-width: 2.5; }
@@ -231,7 +230,6 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 }
 .etiqueta-melhor { background: var(--verde); color: #fff; font-size: 13px; padding: 6px 12px; box-shadow: 0 6px 16px -6px rgb(14 122 69 / .6); }
 .etiqueta-melhor::after { content: ""; position: absolute; left: 50%; bottom: -4px; width: 8px; height: 8px; background: inherit; transform: translateX(-50%) rotate(45deg); border-radius: 2px; }
-.etiqueta-segundo { background: var(--fundo); color: var(--verde-texto); border: 1px solid rgb(14 122 69 / .3); font-weight: 550; }
 .etiqueta-pior { background: #fff; color: #b3261e; border: 1px solid rgb(217 72 59 / .45); font-weight: 600; }
 .etiqueta-pico { background: none; color: var(--laranja-texto); padding: 0; transform: translate(-50%, -170%); }
 .etiqueta-hora {

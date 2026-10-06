@@ -13,7 +13,7 @@ const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Versão do formato dos dados: mudar sempre que public/data/ mudar de formato (ex.: faixas de 15 → 5 min).
 // Vai na URL para o navegador não misturar arquivo antigo em cache com código novo.
-const VERSAO_DADOS = "5min-1";
+const VERSAO_DADOS = "10min-1";
 const cache = new Map();
 function json(url) {
   if (!cache.has(url)) {
@@ -77,7 +77,7 @@ async function mostraBrasil(modo) {
   contagem = br.v;
   const total = br.v.reduce((x, y) => x + y, 0);
   const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
-  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, segundo: a.r2.segundo, pior: a.r2.pior, pior2: a.r2.pior2 }, modo);
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, modo);
   $("#arraste").textContent = `Cada ponto representa cerca de ${milhoes(escala).replace(/ de$/, "")} eleitores, no horário em que votaram. Arraste pelo gráfico para ver cada horário.`;
   $("#rotulo-grafico").textContent = `Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
   return a;
@@ -133,7 +133,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   onde.innerHTML = r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join('<span class="sep">/</span>');
   $("#titulo").innerHTML = `Vá entre <em>${r.ini} e ${r.fim}</em>`;
   const quem = ctx.secao ? "da sua seção" : "desse local";
-  let sub = r.seg ? `Também tranquilo: <span class="tb">${r.seg[0]} às ${r.seg[1]}</span>. ` : "";
+  let sub = "";
   const juntas = a.r2.pior2 != null && Math.abs(a.r2.pior2 - a.r2.pior) <= JANELA + 1;
   const ev0 = juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, ev1 = juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA;
   sub += `Evite ${juntas ? "das " : ""}<span class="tr">${hora(ev0, a.h0)} às ${hora(ev1, a.h0)}</span>. `;
@@ -160,7 +160,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
 
   $("#rotulo-grafico").textContent = ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`;
   contagem = ctx.d.v;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, segundo: a.r2.segundo, pior: a.r2.pior, pior2: a.r2.pior2 }, primeira ? "entrada" : "transforma");
+  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, primeira ? "entrada" : "transforma");
   $("#arraste").textContent = `Cada ponto é um eleitor ${ctx.secao ? "desta urna" : "deste local"}, no minuto em que foi votar (${(ctx.eleitores?.length || ctx.d.n || 0).toLocaleString("pt-BR")} no 1º turno). Arraste pelo gráfico para ver cada horário.`;
   grafico.passeia(a.r2.melhor + JANELA / 2, primeira ? 1600 : 900);
   primeira = false;

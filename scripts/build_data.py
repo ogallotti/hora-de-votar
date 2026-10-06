@@ -11,7 +11,7 @@ Saídas (formato no README):
     public/data/z/<código>-<zona>.json  curva de cada seção da zona e o minuto de cada eleitor ("t", ver minutos())
     public/data/br.json                 curva do Brasil e de cada UF
 
-Métrica: faixas de 5 min contadas a partir da abertura oficial (8h de Brasília = hora local da urna).
+Métrica: faixas de 10 min contadas a partir da abertura oficial (8h de Brasília = hora local da urna).
   v[i] = eleitores que começaram a votar na faixa i;
   q[i] = desses, quantos pegaram fila: o intervalo desde o eleitor anterior ficou dentro do tempo de mesa típico
          da seção (até 2×, de 30 a 75 s). Intervalo bem maior = a urna ficou esperando alguém chegar.
@@ -37,9 +37,9 @@ OUT = ROOT / "public" / "data"
 URL_LOCAIS = "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2026.zip"
 UFS = "ac al am ap ba ce df es go ma mg ms mt pa pb pe pi pr rj rn ro rr rs sc se sp to".split()
 
-FAIXA = 300          # 5 min
-FAIXAS = 108         # 9 h de votação
-EXTRA = 36           # até 3 h depois do horário oficial (fila no encerramento)
+FAIXA = 600                  # 10 min (mudar junto com FAIXA_MIN em public/js/modelo.js e VERSAO_DADOS em app.js)
+FAIXAS = 9 * 3600 // FAIXA   # 9 h de votação
+EXTRA = 3 * 3600 // FAIXA    # até 3 h depois do horário oficial (fila no encerramento)
 # UFs com 2º turno para governador em 2026 (resultado oficial do 1º turno); nas demais o 2º turno é só presidente
 GOV2 = {"ac", "am", "df", "es", "rj", "rn", "to"}
 
@@ -143,7 +143,7 @@ def mesa(ivs):
 
 
 def curva(r, h0):
-    """Faixas de 5 min a partir de h0 (hora local da abertura oficial):
+    """Faixas de FAIXA s a partir de h0 (hora local da abertura oficial):
     v = eleitores que começaram a votar na faixa; q = desses, quantos pegaram fila.
     Pegou fila: o intervalo desde o eleitor anterior ficou dentro do tempo de mesa (até 2× o típico, de 30 a 75 s),
     ou seja, o próximo foi chamado logo; intervalo bem maior = a urna ficou esperando alguém chegar.
@@ -162,8 +162,10 @@ def curva(r, h0):
     return v, q, lim
 
 
-def saturada(v, q, r=6, lim=90):
-    """Fração das faixas oficiais em que a urna ficou no limite (% com fila, somando vizinhas, de lim para cima: quase todos esperaram)."""
+def saturada(v, q, r=None, lim=90):
+    """Fração das faixas oficiais em que a urna ficou no limite (% com fila, somando vizinhas a ±30 min, de lim para cima:
+    quase todos esperaram)."""
+    r = r if r is not None else max(1, round(1800 / FAIXA))
     n = 0
     for i in range(FAIXAS):
         sv = sum(v[max(0, i - r): i + r + 1])
@@ -175,7 +177,7 @@ def saturada(v, q, r=6, lim=90):
 
 def perfil(curvas):
     """Perfil de chegada: soma das seções que nunca ficaram no limite (nelas, começar a votar = chegar),
-    normalizado para somar 1 nas 108 faixas oficiais. None se houver menos de 30 seções assim."""
+    normalizado para somar 1 nas faixas oficiais. None se houver menos de 30 seções assim."""
     livres = [v for v, q in curvas if saturada(v, q) == 0]
     if len(livres) < 30:
         return None
@@ -237,7 +239,7 @@ def abertura(rs):
 
 
 def corta(v, n=None):
-    """Tira zeros do fim, sem cortar as 108 faixas oficiais (ou corta no tamanho n, para q acompanhar v)."""
+    """Tira zeros do fim, sem cortar as faixas oficiais (ou corta no tamanho n, para q acompanhar v)."""
     if n is None:
         n = len(v)
         while n > FAIXAS and not v[n - 1]:

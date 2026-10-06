@@ -16,14 +16,14 @@ test("demanda devolve quem votou depois do encerramento às 2 últimas horas", (
 });
 
 test("simulação: urna folgada não forma fila; urna rápida esvazia a fila", () => {
-  const { o, espera: e } = simula2(demanda(Array(OFICIAIS).fill(1)), 30, 20); // 1 a cada 5 min, 50 s cada = 17%
+  const { o, espera: e } = simula2(demanda(Array(OFICIAIS).fill(FAIXA_MIN / 5)), 30, 20); // 1 a cada 5 min, 50 s cada = 17%
   assert.ok(o.every((x) => x <= 20));
   assert.ok(e.every((x) => x < 0.01));
-  const pico = Array(OFICIAIS).fill(0.5); pico[0] = 20; // 20 chegam na abertura
-  const r = simula2(demanda(pico), 40, 20); // 60 s cada: 5 por faixa
+  const pico = Array(OFICIAIS).fill(0); pico[0] = 20; // 20 chegam na abertura
+  const r = simula2(demanda(pico), 40, 20); // 60 s cada: 20 min de fila
   assert.equal(r.o[0], 100);
-  assert.equal(r.o[2], 100);
-  assert.ok(r.o[6] < 30);
+  assert.equal(r.o[Math.floor(20 / FAIXA_MIN) - 1], 100);
+  assert.ok(r.o[faixa(1)] < 30);
 });
 
 test("chance de fila soma vizinhas e trata faixa vazia como livre", () => {
@@ -41,20 +41,18 @@ test("horários: acha a hora mais vazia e a mais cheia, sem passar do encerramen
   assert.ok(horarios(Array(OFICIAIS).fill(0)).melhor + JANELA < OFICIAIS);
 });
 
-test("segundo melhor e segundo pior horário não sobrepõem os primeiros", () => {
+test("segunda pior hora não sobrepõe a primeira", () => {
   const o = Array(OFICIAIS).fill(80);
   for (let i = faixa(2); i < faixa(3); i++) o[i] = 10;
   for (let i = faixa(6); i < faixa(7); i++) o[i] = 20;
   const r = horarios(o);
   assert.ok(Math.abs(r.melhor - faixa(2)) <= 2);
-  assert.ok(Math.abs(r.segundo - r.melhor) >= JANELA);
-  assert.ok(Math.abs(r.segundo - faixa(6)) <= 2);
   assert.ok(Math.abs(r.pior2 - r.pior) >= JANELA);
 });
 
 test("formatos", () => {
   assert.equal(hora(0, 8), "8h");
-  assert.equal(hora(faixa(1.25), 8), "9h15");
+  assert.equal(hora(faixa(1.5), 8), "9h30");
   assert.equal(hora(1, 8), `8h${String(FAIXA_MIN).padStart(2, "0")}`);
   assert.equal(hora(0, 6), "6h");
   assert.equal(duracao(114), "1min54");

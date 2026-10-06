@@ -50,7 +50,6 @@ export const caminhoDe = (ctx) => (ctx.secao ? `/s/${ctx.mun.cd}/${ctx.z}/${ctx.
 export function resumo(ctx) {
   const a = analisa(ctx.d, ctx.mun.h0, ctx.perfil);
   const ini = hora(a.r2.melhor, a.h0), fim = hora(a.r2.melhor + JANELA, a.h0);
-  const seg = a.r2.segundo != null ? [hora(a.r2.segundo, a.h0), hora(a.r2.segundo + JANELA, a.h0)] : null;
   const dois = GOV2.includes(ctx.mun.uf);
   const nome = ctx.local?.n || ctx.mun.nome;
   const lugar = [ctx.local?.n, ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao}` : `todas as ${ctx.d.ns} seções`, `${ctx.mun.nome}, ${ctx.mun.uf}`].filter(Boolean);
@@ -60,5 +59,5 @@ export function resumo(ctx) {
   const rapido = a.fator ? ` No 2º turno, a fila deve andar ${fmt(a.fator)}× mais rápido.` : "";
   const descricao = `${fila}${rapido} Veja o melhor horário da sua seção.`;
   const texto = `No 2º turno, o melhor horário para votar ${ctx.secao ? "na minha seção" : `no ${nome}`} é entre ${ini} e ${fim}. Veja o da sua:`;
-  return { a, ini, fim, seg, dois, nome, lugar, dez, titulo, descricao, texto };
+  return { a, ini, fim, dois, nome, lugar, dez, titulo, descricao, texto };
 }
