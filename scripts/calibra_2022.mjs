@@ -37,12 +37,29 @@ for (const uf of Object.keys(ufs)) {
 }
 const calDe = (uf) => ({ comp: params[uf].comp, perfil2: params[uf].perfil2, kt2: kt2[ufs[uf].gov2 ? "dois" : "um"], kme });
 
+// nível da fila do 2º turno (krho): o que zera o viés da versão "+sempre" no grupo A
+const realDe = (s) => { const r = chanceFila(s.v2, s.q2, Math.max(1, Math.round(30 / FAIXA_MIN))).slice(0, OFICIAIS); while (r.length < OFICIAIS) r.push(0); return r; };
+const viesCom = (k) => {
+  let tot = 0, n = 0;
+  for (const s of A.filter((x) => x.v1.length && x.v2.length)) {
+    const p = analisa({ v: s.v1, q: s.q1, t1: s.t1, t2: s.t2est, me: s.me1, n: s.n1 }, s.h0, ufs[s.uf].perfil1, { ...calDe(s.uf), sempre: true, krho: k }).o2;
+    const r = realDe(s);
+    for (let i = 0; i < OFICIAIS; i++) { tot += (p[i] || 0) - r[i]; n++; }
+  }
+  return tot / n;
+};
+let lo = 0.8, hi = 3;
+for (let it = 0; it < 18; it++) { const mid = (lo + hi) / 2; if (viesCom(mid) < 0) lo = mid; else hi = mid; }
+const krho = +((lo + hi) / 2).toFixed(3);
+console.log(`nível da fila do 2º turno (krho, grupo A): ${krho}`);
+
 // ---------------------------------------------------------------- teste (grupo B)
 const versoes = {
   atual: (s) => analisa(d1(s), s.h0, ufs[s.uf].perfil1),
   "+medidas": (s) => analisa(d1(s), s.h0, ufs[s.uf].perfil1, { ...calDe(s.uf), perfil2: null }),
   "+chegada": (s) => analisa(d1(s), s.h0, ufs[s.uf].perfil1, calDe(s.uf)),
   "+sempre": (s) => analisa(d1(s), s.h0, ufs[s.uf].perfil1, { ...calDe(s.uf), sempre: true }),
+  "+nível": (s) => analisa(d1(s), s.h0, ufs[s.uf].perfil1, { ...calDe(s.uf), sempre: true, krho }),
   repete: (s) => ({ o2: analisa(d1(s), s.h0).o1 }),
 };
 function d1(s) { return { v: s.v1, q: s.q1, t1: s.t1, t2: s.t2est, me: s.me1, n: s.n1 }; }
@@ -75,4 +92,4 @@ console.log(`\nTempo de urna no 2º turno, real / estimado pelo 1º: ${kt2.um} (
 console.log("UF   comparecimento 2º/1º   governador no 2º (2022)");
 for (const [uf, p] of Object.entries(params)) console.log(`${uf}   ${p.comp.toFixed(3)}                  ${p.gov2 ? "sim" : "não"}`);
 const resultado = Object.fromEntries(Object.entries(res).map(([k, r]) => [k, { erro: +m(r.erro).toFixed(2), vies: +m(r.vies).toFixed(2), perda: +m(r.perda).toFixed(2), acerto: +m(r.acerto).toFixed(3) }]));
-writeFileSync(new URL("parametros.json", PASTA), JSON.stringify({ fonte: "amostra dos dois turnos de 2022", kt2, kme, ufs: params, resultado }));
+writeFileSync(new URL("parametros.json", PASTA), JSON.stringify({ fonte: "amostra dos dois turnos de 2022", kt2, kme, krho, ufs: params, resultado }));

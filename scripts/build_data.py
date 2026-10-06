@@ -271,17 +271,19 @@ def calibracao():
         return {}, None
     p = json.loads(arq.read_text())
     res = p["resultado"]
-    melhor = min((k for k in ("atual", "+medidas", "+chegada", "+sempre") if k in res), key=lambda k: (res[k]["perda"], res[k]["erro"]))
+    melhor = min((k for k in ("atual", "+medidas", "+chegada", "+sempre", "+nível") if k in res), key=lambda k: (round(res[k]["perda"]), res[k]["erro"]))  # perda em pp inteiros, depois erro
     log(f"calibração 2022: melhor versão {melhor} ({res[melhor]})")
     if melhor == "atual":
         return {}, melhor
     cal = {}
     for uf, x in p["ufs"].items():
         c = {"comp": x["comp"], "kt2": p["kt2"]["dois" if uf.lower() in GOV2 else "um"], "kme": p["kme"]}
-        if melhor in ("+chegada", "+sempre") and x.get("perfil2"):
+        if melhor in ("+chegada", "+sempre", "+nível") and x.get("perfil2"):
             c["perfil2"] = x["perfil2"]
-        if melhor == "+sempre":
+        if melhor in ("+sempre", "+nível"):
             c["sempre"] = True
+        if melhor == "+nível":
+            c["krho"] = p["krho"]
         cal[uf] = c
     return cal, melhor
 
@@ -300,6 +302,8 @@ def cal_brasil(cal, br_uf):
         c["perfil2"] = [round(sum(p[i] * w for p, w in ps) / sum(w for _, w in ps), 5) for i in range(n)]
     if any(x.get("sempre") for x in cal.values()):
         c["sempre"] = True
+    if any(x.get("krho") for x in cal.values()):
+        c["krho"] = next(x["krho"] for x in cal.values() if x.get("krho"))
     return c
 
 

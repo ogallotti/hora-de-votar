@@ -12,7 +12,7 @@ const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Versão do formato dos dados: mudar sempre que public/data/ mudar de formato (ex.: faixas de 15 → 5 min).
 // Vai na URL para o navegador não misturar arquivo antigo em cache com código novo.
-const VERSAO_DADOS = "10min-1";
+const VERSAO_DADOS = "10min-2";
 const cache = new Map();
 function json(url) {
   if (!cache.has(url)) {

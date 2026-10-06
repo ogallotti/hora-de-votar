@@ -169,7 +169,7 @@ export function fator(t1, t2, me = MESA_PADRAO) {
  * Tudo o que a tela de resultado precisa para uma urna (seção) ou média de urnas (local/município).
  * cal (opcional, por UF, medido no 1º × 2º turno de 2022): comp = eleitores do 2º turno / do 1º; kt2 = tempo real de
  * urna no 2º turno / o estimado pelo 1º; kme = tempo de mesa do 2º / do 1º; perfil2 = horário de chegada no 2º turno;
- * sempre = usar perfil2 para toda a procura (não só onde a urna ficou no limite).
+ * sempre = usar perfil2 para toda a procura (não só onde a urna ficou no limite); krho = fator de nível da fila do 2º.
  */
 export function analisa(d, h0 = 8, perfil = null, cal = null) {
   const ns = d.ns || 1;
@@ -183,7 +183,8 @@ export function analisa(d, h0 = 8, perfil = null, cal = null) {
     ? (() => { const n = demanda(v).reduce((a, b) => a + b, 0); return perfilChegada.map((p) => n * p); })()
     : procura(v, o1, perfilChegada, d.t1, d.me);
   const { o: sim } = simula2(chegadas, t2, me2);
-  const o2 = suaviza(sim).map(Math.round);
+  // nível: a fila simulada supõe chegadas ao acaso; as pessoas chegam mais em grupo. krho (medido em 2022) corrige.
+  const o2 = suaviza(sim).map((x) => Math.min(100, Math.round(x * (cal?.krho ?? 1))));
   const r1 = horarios(o1), r2 = horarios(o2);
   const me = d.me ?? MESA_PADRAO;
   const w1 = o1.map((x) => espera(x / 100, (d.t1 || 0) + me));
