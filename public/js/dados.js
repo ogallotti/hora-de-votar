@@ -10,11 +10,12 @@ export async function resolve(carrega, rota) {
   const [mun, br] = await Promise.all([carrega(`/data/m/${+rota.cd}.json`), carrega("/data/br.json").catch(() => null)]);
   const doUf = br?.uf?.[mun.uf];
   const perfil = doUf?.perfil || ((doUf?.h0 ?? 8) === 8 ? br?.perfil : null);
+  const cal = doUf?.cal || null; // calibração do 2º turno medida em 2022 (comparecimento, tempos, horário de chegada)
   if (rota.tipo === "l") {
     const local = mun.locais.find((x) => x.id === rota.lid);
     if (!local?.ns) throw new Error("local não encontrado");
     const secoes = await carrega(`/data/z/${+rota.cd}-${local.z}.json`).catch(() => ({}));
-    return { mun, local, d: somaLocal(local, secoes), perfil, eleitores: eleitoresDe(secoes, local.s) };
+    return { mun, local, d: somaLocal(local, secoes), perfil, cal, eleitores: eleitoresDe(secoes, local.s) };
   }
   const z = +rota.z, s = +rota.s;
   const local = mun.locais.find((x) => x.z === z && x.s.includes(s));
@@ -22,11 +23,11 @@ export async function resolve(carrega, rota) {
   let d = secoes[s], nota = "";
   if (d?.p) { nota = `A seção ${s} vota na mesma urna da seção ${d.p}.`; d = secoes[d.p]; }
   if (!d && local?.ns) {
-    return { mun, local, d: somaLocal(local, secoes), secao: s, z, perfil, eleitores: eleitoresDe(secoes, local.s),
+    return { mun, local, d: somaLocal(local, secoes), secao: s, z, perfil, cal, eleitores: eleitoresDe(secoes, local.s),
       nota: "Não há log publicado para a sua seção (urna substituída ou voto em cédula). Mostramos a média do local." };
   }
   if (!d) throw new Error("seção não encontrada");
-  return { mun, local, d, secao: s, z, perfil, nota, eleitores: minutosDe(d.t) };
+  return { mun, local, d, secao: s, z, perfil, cal, nota, eleitores: minutosDe(d.t) };
 }
 
 /** Curva do local: soma das urnas das suas seções (agregadas contam na principal); tempos medianos vêm do local. */
@@ -48,7 +49,7 @@ export const caminhoDe = (ctx) => (ctx.secao ? `/s/${ctx.mun.cd}/${ctx.z}/${ctx.
 
 /** Análise + textos prontos (manchete, prévia de link, compartilhamento). */
 export function resumo(ctx) {
-  const a = analisa(ctx.d, ctx.mun.h0, ctx.perfil);
+  const a = analisa(ctx.d, ctx.mun.h0, ctx.perfil, ctx.cal);
   const ini = hora(a.r2.melhor, a.h0), fim = hora(a.r2.melhor + JANELA, a.h0);
   const dois = GOV2.includes(ctx.mun.uf);
   const nome = ctx.local?.n || ctx.mun.nome;

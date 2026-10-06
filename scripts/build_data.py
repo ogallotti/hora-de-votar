@@ -262,11 +262,53 @@ def grava(p, obj):
     p.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
 
 
+def calibracao():
+    """Calibração do 2º turno medida em 2022 (scripts/calibra_2022.mjs), por UF, ou {} se não houver.
+    Usa a versão que errou menos no teste com 2022 (perda no horário recomendado, depois erro médio); se a melhor for
+    o algoritmo sem calibração, não calibra. O fator de tempo de urna vem pelo GOV2 de 2026 (1 ou 2 votos)."""
+    arq = CACHE / "2022" / "parametros.json"
+    if not arq.exists():
+        return {}, None
+    p = json.loads(arq.read_text())
+    res = p["resultado"]
+    melhor = min((k for k in ("atual", "+medidas", "+chegada", "+sempre") if k in res), key=lambda k: (res[k]["perda"], res[k]["erro"]))
+    log(f"calibração 2022: melhor versão {melhor} ({res[melhor]})")
+    if melhor == "atual":
+        return {}, melhor
+    cal = {}
+    for uf, x in p["ufs"].items():
+        c = {"comp": x["comp"], "kt2": p["kt2"]["dois" if uf.lower() in GOV2 else "um"], "kme": p["kme"]}
+        if melhor in ("+chegada", "+sempre") and x.get("perfil2"):
+            c["perfil2"] = x["perfil2"]
+        if melhor == "+sempre":
+            c["sempre"] = True
+        cal[uf] = c
+    return cal, melhor
+
+
+def cal_brasil(cal, br_uf):
+    """Calibração do Brasil (capa): média das UFs no horário de Brasília, ponderada pelo número de urnas."""
+    pesos = {u: x["ns"] for u, x in br_uf.items() if cal.get(u) and x.get("h0") == 8 and x.get("ns")}
+    if not pesos:
+        return None
+    tot = sum(pesos.values())
+    c = {"comp": round(sum(cal[u]["comp"] * w for u, w in pesos.items()) / tot, 3),
+         "kt2": round(sum(cal[u]["kt2"] * w for u, w in pesos.items()) / tot, 3), "kme": next(iter(cal.values()))["kme"]}
+    ps = [(cal[u]["perfil2"], w) for u, w in pesos.items() if cal[u].get("perfil2")]
+    if ps:
+        n = len(ps[0][0])
+        c["perfil2"] = [round(sum(p[i] * w for p, w in ps) / sum(w for _, w in ps), 5) for i in range(n)]
+    if any(x.get("sempre") for x in cal.values()):
+        c["sempre"] = True
+    return c
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ufs", default="")
     a = ap.parse_args()
     ufs = a.ufs.split(",") if a.ufs else UFS
+    cal, versao_cal = calibracao()
     muns_out, br_uf = [], {}
     br_v, br_o, br_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
     br_t, br_c = [], []
@@ -353,6 +395,8 @@ def main():
         br_uf[uf.upper()] = {"v": corta(uf_v), "q": corta(uf_o, len(corta(uf_v))), "ns": uf_n,
                              "h0": statistics.mode(h0_mun.values()) if h0_mun else 8, **junta_tempos(uf_t),
                              "perfil": uf_perfil, "livres": sum(1 for v, q in uf_c if saturada(v, q) == 0)}
+        if cal.get(uf.upper()):
+            br_uf[uf.upper()]["cal"] = cal[uf.upper()]
         if br_uf[uf.upper()]["h0"] == 8:  # Brasil no horário de Brasília: só soma quem abre às 8h locais
             for i in range(FAIXAS + EXTRA):
                 br_v[i] += uf_v[i]
@@ -362,7 +406,7 @@ def main():
             br_c += uf_c
         log(f"{uf}: {len(por_sec)} seções com log, {sem_log} sem log, {len(locais)} municípios")
     grava(OUT / "br.json", {"v": corta(br_v), "q": corta(br_o, len(corta(br_v))), "ns": br_n, **junta_tempos(br_t),
-                            "perfil": perfil(br_c),
+                            "perfil": perfil(br_c), "calibracao": versao_cal, "cal": cal_brasil(cal, br_uf),
                             "uf": br_uf})
     # municipios.json acumula entre execuções parciais (--ufs)
     idx = OUT / "municipios.json"

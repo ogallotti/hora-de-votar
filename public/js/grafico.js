@@ -1,18 +1,17 @@
-// Gráfico do dia na urna: as duas curvas (fila no 1º turno, medida; estimativa para o 2º) desenhadas por pontos,
-// e cada ponto é um eleitor de verdade, no minuto em que foi votar (no Brasil, cada ponto vale um lote de eleitores).
-// Na entrada o dia é revivido: os eleitores acendem na ordem em que votaram; depois alguns piscam, como gente votando.
-// Um só gráfico na página: os dados mudam (Brasil → local → seção), as curvas se transformam e o dia recomeça.
+// Gráfico do dia na urna, em pontos: cada coluna é uma faixa de FAIXA_MIN minutos e cada ponto vale 1 em cada 20 eleitores.
+// Cinza = esperou na fila no 1º turno (medido); verde = deve esperar no 2º (estimativa).
+// Os pontos acendem em onda na entrada e piscam no ritmo em que as pessoas votaram naquela faixa.
+// Um só gráfico na página: os dados mudam (Brasil → local → seção) e os pontos se rearrumam.
 // Régua: arraste, toque ou setas do teclado; avisa quem está ouvindo (aoMover) a cada faixa.
 import { hora, OFICIAIS, FAIXA_MIN, JANELA } from "./modelo.js";
-import { caminho, tangentes, avalia } from "./curva.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
-const MIN = N * FAIXA_MIN;
-const COR = { r1: "#b5bbb7", r1Forte: "#6f7772", verde: "#45c07f", verdeForte: "#0e7a45", brilho: "#6fe0a3" };
+const LINHAS = 20;      // 20 pontos por coluna: cada um = 5%
+const COR = { vazio: "#eceeec", r1: "#a7aeaa", r1Forte: "#6f7772", verde: "#0e7a45", brilho: "#3fd283" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
-const easeInOutSine = (t) => -(Math.cos(Math.PI * t) - 1) / 2;
+const easeOut = (t) => 1 - (1 - t) ** 3;
 
 function el(tag, attrs = {}, pai) {
   const e = document.createElementNS(NS, tag);
@@ -21,31 +20,18 @@ function el(tag, attrs = {}, pai) {
   return e;
 }
 const ajusta = (xs) => Array.from({ length: N }, (_, i) => xs?.[i] ?? 0);
-// pseudoaleatório estável (o mesmo eleitor fica sempre no mesmo lugar)
-const acaso = (k, s = 1) => { const x = Math.sin(k * 12.9898 + s * 78.233) * 43758.5453; return x - Math.floor(x); };
 
-function sprite(raio, cor, halo, dpr, forca = "55") {
-  const t = Math.ceil((raio + halo) * 2 * dpr) + 2, c = document.createElement("canvas");
+function sprite(raio, cor, halo, dpr) {
+  const t = Math.ceil((raio + halo) * 2 * dpr), c = document.createElement("canvas");
   c.width = c.height = t;
   const x = c.getContext("2d"), m = t / 2;
   if (halo) {
-    const g = x.createRadialGradient(m, m, raio * dpr * 0.5, m, m, m);
-    g.addColorStop(0, `${cor}${forca}`); g.addColorStop(1, `${cor}00`);
+    const g = x.createRadialGradient(m, m, raio * dpr * 0.6, m, m, m);
+    g.addColorStop(0, `${cor}40`); g.addColorStop(1, `${cor}00`);
     x.fillStyle = g; x.fillRect(0, 0, t, t);
   }
   x.fillStyle = cor; x.beginPath(); x.arc(m, m, raio * dpr, 0, Math.PI * 2); x.fill();
   return c;
-}
-
-/** Pontos a desenhar: minuto (com fração estável) de cada eleitor; sem lista, distribui o total de cada faixa. */
-function pontosDe(eleitores, v, escala) {
-  if (eleitores?.length) return eleitores.map((m, k) => ({ m: Math.min(MIN - 0.01, m + acaso(k, 3)), j: acaso(k, 7) * 2 - 1, k }));
-  const out = [];
-  v.forEach((n, i) => {
-    const q = Math.round(n / escala);
-    for (let a = 0; a < q; a++) { const k = out.length; out.push({ m: i * FAIXA_MIN + ((a + acaso(k, 3)) / q) * FAIXA_MIN, j: acaso(k, 7) * 2 - 1, k }); }
-  });
-  return out;
 }
 
 export class Grafico {
@@ -54,13 +40,11 @@ export class Grafico {
     this.aoMover = aoMover;
     this.aoEntrarMelhor = aoEntrarMelhor;
     this.h0 = 8;
-    this.cur = { o1: ajusta(), o2: ajusta(), melhor: 0, pior: null, pior2: null };
-    this.pts = [];
+    this.cur = { o1: ajusta(), o2: ajusta(), v: ajusta(), melhor: 0, pior: null, pior2: null };
     this.i = null;
     this.mexeu = false;
     this.mostra = { r1: true, r2: true };
     this.piscas = [];
-    this.relogio = MIN; // até que minuto do dia os eleitores já apareceram (revivendo o dia)
     this.visivel = true;
     this.monta();
     new ResizeObserver(() => { this.W = null; this.desenha(); }).observe(alvo);
@@ -76,30 +60,21 @@ export class Grafico {
     a.setAttribute("aria-valuemin", "0");
     a.setAttribute("aria-valuemax", String(N - 1));
     a.setAttribute("aria-label", "Horário do dia");
+    this.cv = document.createElement("canvas");
+    this.cv.className = "g-pontos";
+    a.appendChild(this.cv);
+    this.ctx = this.cv.getContext("2d");
     const svg = (this.svg = el("svg", { "aria-hidden": "true" }, a));
-    const defs = el("defs", {}, svg);
-    const g1 = el("linearGradient", { id: "grad-r1", x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    el("stop", { offset: 0, "stop-color": "#eef0ee" }, g1);
-    el("stop", { offset: 1, "stop-color": "#f8f9f8" }, g1);
-    const g2 = el("linearGradient", { id: "grad-r2", x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    el("stop", { offset: 0, "stop-color": "#0e7a45", "stop-opacity": 0.1 }, g2);
-    el("stop", { offset: 1, "stop-color": "#0e7a45", "stop-opacity": 0 }, g2);
     this.n = {
       grade: el("g", {}, svg),
       encerrado: el("rect", { class: "g-encerrado" }, svg),
       encRot: el("text", { class: "g-encerrado-rot", "text-anchor": "middle" }, svg),
-      r1a: el("path", { class: "g-r1-area" }, svg),
-      r2a: el("path", { class: "g-r2-area" }, svg),
       pior: el("rect", { class: "g-pior", rx: 12 }, svg),
       pior2: el("rect", { class: "g-pior", rx: 12 }, svg),
       melhor: el("rect", { class: "g-melhor", rx: 12 }, svg),
       eixo: el("g", {}, svg),
       mira: el("line", { class: "g-mira" }, svg),
     };
-    this.cv = document.createElement("canvas");
-    this.cv.className = "g-pontos";
-    a.appendChild(this.cv);
-    this.ctx = this.cv.getContext("2d");
     const etq = (cls, txt = "") => { const d = document.createElement("div"); d.className = `etiqueta ${cls}`; d.textContent = txt; a.appendChild(d); return d; };
     this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), pior: etq("etiqueta-pior", "evite"), pior2: etq("etiqueta-pior", "evite"), hora: etq("etiqueta-hora") };
 
@@ -126,75 +101,69 @@ export class Grafico {
 
   usuario() { this.mexeu = true; cancelAnimationFrame(this.passeio); }
 
-  /**
-   * dados: {h0, o1, o2, melhor, pior, pior2, eleitores (minuto de cada eleitor desde a abertura) | v + escala (eleitores por ponto)}
-   * modo: "entrada" (o dia é revivido), "transforma" (curvas mudam e o dia recomeça) ou "direto".
-   */
+  /** dados: {h0, o1, o2, v (eleitores por urna em cada faixa), melhor, pior, pior2}; modo: "entrada", "transforma", "direto". */
   define(dados, modo = "transforma") {
     this.h0 = dados.h0 ?? 8;
-    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
-    this.pts = pontosDe(dados.eleitores, ajusta(dados.v), dados.escala || 1);
-    this.densidade = this.pts.length / (OFICIAIS * FAIXA_MIN); // pontos por minuto
-    this.W = null; // tamanho dos pontos depende da densidade
+    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), v: ajusta(dados.v), melhor: dados.melhor ?? 0, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
     this.piscas = [];
-    if (reduz() || modo === "direto") { this.cur = alvo; this.tween = null; this.dia = null; this.relogio = MIN; this.desenha(); this.liga(); return; }
-    const de = modo === "entrada" ? { ...alvo, o1: alvo.o1.map(() => 0), o2: alvo.o2.map(() => 0) } : structuredClone(this.cur);
-    const agora = performance.now();
-    this.tween = { de, alvo, t0: agora, dur: modo === "entrada" ? 1100 : 800 };
-    this.dia = { t0: agora + (modo === "entrada" ? 250 : 150), dur: modo === "entrada" ? 2600 : 1900 };
-    this.relogio = 0;
+    if (reduz() || modo === "direto") { this.cur = alvo; this.tween = null; this.desenha(); this.liga(); return; }
+    const de = modo === "entrada" ? { ...alvo, o1: ajusta(), o2: ajusta() } : structuredClone(this.cur);
+    this.tween = { de, alvo, t0: performance.now(), dur: modo === "entrada" ? 1900 : 950, modo };
     this.liga();
   }
 
   passo(agora) {
-    let mexeu = false;
     const tw = this.tween;
-    if (tw) {
-      const t = Math.min(1, (agora - tw.t0) / tw.dur), k = easeIO(t);
-      const lerp = (a, b) => a + (b - a) * k;
-      this.cur = {
-        o1: tw.alvo.o1.map((v, i) => lerp(tw.de.o1[i], v)),
-        o2: tw.alvo.o2.map((v, i) => lerp(tw.de.o2[i], v)),
-        melhor: lerp(tw.de.melhor, tw.alvo.melhor),
-        pior: tw.alvo.pior == null ? null : lerp(tw.de.pior ?? tw.alvo.pior, tw.alvo.pior),
-        pior2: tw.alvo.pior2 == null ? null : lerp(tw.de.pior2 ?? tw.alvo.pior2, tw.alvo.pior2),
-      };
-      if (t >= 1) { this.cur = tw.alvo; this.tween = null; }
-      mexeu = true;
-    }
-    if (this.dia) {
-      const t = Math.max(0, Math.min(1, (agora - this.dia.t0) / this.dia.dur));
-      this.relogio = easeInOutSine(t) * MIN;
-      if (t >= 1) { this.dia = null; this.relogio = MIN; }
-      mexeu = true;
-    }
-    return mexeu;
+    if (!tw) return false;
+    const t = Math.min(1, (agora - tw.t0) / tw.dur);
+    const lerp = (a, b, k) => a + (b - a) * k;
+    const onda = (i, atraso) => (tw.modo === "entrada" ? easeOut(Math.max(0, Math.min(1, (t - atraso - (i / N) * 0.4) / 0.5))) : easeIO(Math.max(0, Math.min(1, (t - (i / N) * 0.15) / 0.85))));
+    this.cur = {
+      o1: tw.alvo.o1.map((v, i) => lerp(tw.de.o1[i], v, onda(i, 0))),
+      o2: tw.alvo.o2.map((v, i) => lerp(tw.de.o2[i], v, onda(i, 0.1))),
+      v: tw.alvo.v,
+      melhor: lerp(tw.de.melhor, tw.alvo.melhor, easeIO(t)),
+      pior: tw.alvo.pior == null ? null : lerp(tw.de.pior ?? tw.alvo.pior, tw.alvo.pior, easeIO(t)),
+      pior2: tw.alvo.pior2 == null ? null : lerp(tw.de.pior2 ?? tw.alvo.pior2, tw.alvo.pior2, easeIO(t)),
+    };
+    if (t >= 1) { this.cur = tw.alvo; this.tween = null; }
+    return true;
   }
 
-  /** Liga o laço de animação enquanto houver o que animar (curvas, dia sendo revivido ou pontos piscando). */
+  /** Liga o laço de animação enquanto houver o que animar (onda, transformação ou pontos piscando na tela). */
   liga() {
     if (this.rodando) return;
-    const pisca = () => !reduz() && this.visivel && document.visibilityState === "visible" && this.pts.length;
-    if (!this.tween && !this.dia && !pisca()) { this.desenha(); return; }
+    const pisca = () => !reduz() && this.visivel && document.visibilityState === "visible";
+    if (!this.tween && !pisca()) { this.desenha(); return; }
     this.rodando = true;
     let ultimo = performance.now();
     const laco = (agora) => {
       const dt = Math.min(0.1, (agora - ultimo) / 1000);
       ultimo = agora;
-      const curvas = this.passo(agora);
-      if (pisca() && !this.dia) this.semeia(dt, agora);
-      if (curvas) this.desenha(agora); else this.pontos(agora);
-      if (this.tween || this.dia || pisca()) this.raf = requestAnimationFrame(laco);
+      const mexeu = this.passo(agora);
+      if (pisca()) this.semeia(dt, agora);
+      this.desenha(mexeu, agora);
+      if (this.tween || pisca()) this.raf = requestAnimationFrame(laco);
       else { this.rodando = false; this.desenha(); }
     };
     this.raf = requestAnimationFrame(laco);
   }
 
-  /** Eleitores que piscam ao acaso: o dia continua vivo depois de revivido. */
+  /** Novos "votos": pontos que piscam, mais onde mais gente votou naquela faixa. */
   semeia(dt, agora) {
-    const n = this.pts.length;
-    if (Math.random() < dt * 7) this.piscas.push({ p: this.pts[Math.floor(Math.random() * n)], t0: agora });
-    this.piscas = this.piscas.filter((p) => agora - p.t0 < 1100).slice(-30);
+    const v = this.cur.v, tot = v.reduce((a, b) => a + b, 0);
+    if (!tot) return;
+    let n = dt * 5; // ~5 piscadas por segundo no gráfico todo
+    while (n > 0) {
+      if (Math.random() < Math.min(1, n)) {
+        let r = Math.random() * tot, i = 0;
+        while (i < N - 1 && (r -= v[i]) > 0) i++;
+        const topo = Math.max(this.cur.o1[i], i < OFICIAIS ? this.cur.o2[i] : 0) / 100 * LINHAS;
+        if (topo >= 1) this.piscas.push({ i, j: Math.floor(Math.random() * Math.floor(topo)), t0: agora });
+      }
+      n -= 1;
+    }
+    this.piscas = this.piscas.filter((p) => agora - p.t0 < 900).slice(-40);
   }
 
   vai(i, avisa = true) {
@@ -216,7 +185,7 @@ export class Grafico {
     const t0 = performance.now() + atraso, dur = 1600;
     const passo = (agora) => {
       const t = Math.max(0, Math.min(1, (agora - t0) / dur));
-      if (agora >= t0) this.vai(Math.round(i * easeIO(t)), false);
+      this.vai(Math.round(i * easeIO(t)), false);
       if (t < 1 && !this.mexeu) this.passeio = requestAnimationFrame(passo);
     };
     this.passeio = requestAnimationFrame(passo);
@@ -225,7 +194,6 @@ export class Grafico {
   series({ r1 = true, r2 = true }) {
     this.mostra = { r1, r2 };
     this.alvo.classList.toggle("esconde-1", !r1);
-    this.alvo.classList.toggle("esconde-2", !r2);
     this.desenha();
   }
 
@@ -237,29 +205,25 @@ export class Grafico {
     const m = (this.m = { t: 40, r: 6, b: 32, l: estreito ? 30 : 38 });
     this.x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r);
     this.xb = (i) => m.l + (i / N) * (W - m.l - m.r);
-    this.xm = (min) => m.l + (min / MIN) * (W - m.l - m.r);
     this.y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b);
     const dpr = (this.dpr = Math.min(2, devicePixelRatio || 1));
     this.cv.width = W * dpr; this.cv.height = H * dpr;
     this.cv.style.width = `${W}px`; this.cv.style.height = `${H}px`;
-    // pontos menores e faixa mais larga quando há muitos eleitores por minuto
-    const porPx = (this.densidade || 0.4) * MIN / (W - m.l - m.r);
-    this.raio = Math.max(0.9, Math.min(1.7, 1.8 - porPx * 0.6));
-    this.espalha = Math.max(2.5, Math.min(16, 1.5 + porPx * 6));
-    const r = this.raio;
+    const passoX = (W - m.l - m.r) / N, passoY = (H - m.t - m.b) / LINHAS;
+    const raio = (this.raio = Math.max(1.6, Math.min(passoX, passoY) * 0.3));
     this.sp = {
-      r1: sprite(r, COR.r1, 0, dpr),
-      r1Forte: sprite(r * 1.25, COR.r1Forte, 0, dpr),
-      verde: sprite(r, COR.verde, r * 1.6, dpr, "38"),
-      verdeForte: sprite(r * 1.3, COR.verdeForte, r * 2, dpr, "55"),
-      brilho: sprite(r * 1.2, COR.brilho, r * 4, dpr, "88"),
-      brilhoCinza: sprite(r * 1.2, "#9aa29e", r * 3, dpr, "55"),
+      vazio: sprite(raio * 0.62, COR.vazio, 0, dpr),
+      r1: sprite(raio, COR.r1, 0, dpr),
+      r1Forte: sprite(raio * 1.15, COR.r1Forte, 0, dpr),
+      verde: sprite(raio, COR.verde, raio * 1.4, dpr),
+      verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
+      brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
     };
     const svg = this.svg, n = this.n;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     n.grade.innerHTML = ""; n.eixo.innerHTML = "";
     for (const v of [0, 50, 100]) {
-      el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: this.y(v), y2: this.y(v) }, n.grade);
+      el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: this.y(v) + (v ? 0 : 2), y2: this.y(v) + (v ? 0 : 2) }, n.grade);
       el("text", { class: "g-eixo", x: m.l - 8, y: this.y(v) + 4, "text-anchor": "end" }, n.eixo).textContent = v ? `${v}%` : "0";
     }
     const passo = (estreito ? 120 : 60) / FAIXA_MIN; // rótulo a cada 1 h (2 h no celular)
@@ -273,30 +237,19 @@ export class Grafico {
     n.encRot.textContent = W - m.r - x0 > 50 ? "encerrou" : "";
   }
 
-  desenha(agora = performance.now()) {
+  desenha(_mexeu, agora = performance.now()) {
     this.geometria();
     const { n, m, H } = this, c = this.cur;
-    // áreas bem leves: a curva em si são os eleitores
-    const p1 = c.o1.map((v, i) => [this.x(i), this.y(v)]);
-    const p2 = c.o2.slice(0, OFICIAIS).map((v, i) => [this.x(i), this.y(v)]);
-    const fecha = (p) => `L${p[p.length - 1][0].toFixed(1)},${this.y(0)}L${p[0][0].toFixed(1)},${this.y(0)}Z`;
-    n.r1a.setAttribute("d", caminho(p1) + fecha(p1));
-    n.r2a.setAttribute("d", caminho(p2) + fecha(p2));
-    this.t1 = tangentes(c.o1); this.t2 = tangentes(c.o2.slice(0, OFICIAIS));
     const banda = (r, ini, fim = ini + JANELA) => {
       if (ini == null) { r.setAttribute("width", 0); return null; }
       const b0 = this.xb(ini), b1 = this.xb(fim);
       Object.entries({ x: b0 + 1, y: m.t - 8, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 10 }).forEach(([k, v]) => r.setAttribute(k, v));
       return (b0 + b1) / 2;
     };
-    // faixas: melhor (verde) e evite (avermelhadas); rótulos que colidem somem por prioridade
-    // as duas piores horas encostadas viram uma faixa só
+    // faixas: melhor (verde) e evite (avermelhada; as duas piores horas encostadas viram uma só); rótulos que colidem somem
     const juntas = c.pior != null && c.pior2 != null && Math.abs(c.pior2 - c.pior) <= JANELA + 1;
     const pIni = juntas ? Math.min(c.pior, c.pior2) : c.pior, pFim = juntas ? Math.max(c.pior, c.pior2) + JANELA : c.pior + JANELA;
-    const faixas = [
-      ["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)],
-      ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)],
-    ];
+    const faixas = [["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)], ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)]];
     const postos = [];
     for (const [k, x] of faixas) {
       const e = this.e[k];
@@ -310,42 +263,33 @@ export class Grafico {
   }
 
   pontos(agora = performance.now()) {
-    const { ctx, sp, dpr } = this, c = this.cur;
-    if (!sp || !this.t1) return;
+    const { ctx, sp, dpr, m, H } = this, c = this.cur;
+    if (!sp) return;
     ctx.clearRect(0, 0, this.cv.width, this.cv.height);
+    const passoY = (H - m.t - m.b) / LINHAS;
+    const yRow = (j) => (H - m.b - (j + 0.5) * passoY) * dpr;
     const poe = (img, x, y, alfa = 1, esc = 1) => {
-      if (alfa <= 0.02) return;
+      if (alfa <= 0.01) return;
       ctx.globalAlpha = Math.min(1, alfa);
       const w = img.width * esc, h = img.height * esc;
-      ctx.drawImage(img, x * dpr - w / 2, y * dpr - h / 2, w, h);
+      ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
     };
-    const fimOficial = OFICIAIS * FAIXA_MIN, rel = this.relogio, foco = this.i;
-    const o2 = c.o2.slice(0, OFICIAIS);
-    const lugar = (p, segundo) => {
-      const u = p.m / FAIXA_MIN - 0.5;
-      const v = segundo ? avalia(o2, this.t2, Math.min(u, OFICIAIS - 1)) : avalia(c.o1, this.t1, u);
-      return [this.xm(p.m), this.y(Math.max(0, Math.min(100, v))) + p.j * this.espalha];
-    };
-    for (const p of this.pts) {
-      if (p.m > rel) break;
-      const idade = rel - p.m; // minutos desde que o eleitor "chegou" (revivendo o dia)
-      const nasce = this.dia ? Math.max(0, 1 - idade / 40) : 0;
-      const realce = foco != null && Math.floor(p.m / FAIXA_MIN) === foco;
-      if (this.mostra.r1) {
-        const [x, y] = lugar(p, false);
-        poe(realce ? sp.r1Forte : sp.r1, x, y, 0.55 + 0.45 * (1 - nasce) * (realce ? 1 : 0.8));
-        if (nasce) poe(sp.brilhoCinza, x, y, nasce * 0.8, 1 + nasce * 0.6);
-      }
-      if (this.mostra.r2 && p.m < fimOficial) {
-        const [x, y] = lugar(p, true);
-        poe(realce ? sp.verdeForte : sp.verde, x, y, 1);
-        if (nasce) poe(sp.brilho, x, y, nasce, 1 + nasce * 0.8);
+    for (let i = 0; i < N; i++) {
+      const x = this.x(i) * dpr, foco = i === this.i;
+      const k1 = this.mostra.r1 ? (c.o1[i] / 100) * LINHAS : 0;
+      const k2 = this.mostra.r2 && i < OFICIAIS ? (c.o2[i] / 100) * LINHAS : 0;
+      for (let j = 0; j < LINHAS; j++) {
+        const y = yRow(j);
+        const a2 = Math.max(0, Math.min(1, k2 - j)), a1 = Math.max(0, Math.min(1, k1 - j));
+        if (a2 < 1 && a1 < 1) poe(sp.vazio, x, y, 1);
+        if (a1 > 0 && a2 < 1) poe(foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2) + (a2 ? 0 : 0));
+        if (a2 > 0) poe(foco ? sp.verdeForte : sp.verde, x, y, a2);
       }
     }
-    for (const q of this.piscas) {
-      const t = (agora - q.t0) / 1100, k = Math.sin(Math.PI * Math.min(1, t));
-      if (this.mostra.r2 && q.p.m < fimOficial) { const [x, y] = lugar(q.p, true); poe(sp.brilho, x, y, k, 1 + 0.5 * k); }
-      else if (this.mostra.r1) { const [x, y] = lugar(q.p, false); poe(sp.brilhoCinza, x, y, k * 0.8, 1 + 0.4 * k); }
+    for (const p of this.piscas) {
+      const t = (agora - p.t0) / 900, k = Math.sin(Math.PI * t);
+      const verde = this.mostra.r2 && p.i < OFICIAIS && p.j < (c.o2[p.i] / 100) * LINHAS;
+      poe(verde ? sp.brilho : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde ? k : k * 0.8, 1 + 0.35 * k);
     }
     ctx.globalAlpha = 1;
   }

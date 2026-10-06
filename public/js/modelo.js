@@ -165,23 +165,34 @@ export function fator(t1, t2, me = MESA_PADRAO) {
   return (t1 + m) / (t2 + m);
 }
 
-/** Tudo o que a tela de resultado precisa para uma urna (seção) ou média de urnas (local/município). */
-export function analisa(d, h0 = 8, perfil = null) {
+/**
+ * Tudo o que a tela de resultado precisa para uma urna (seção) ou média de urnas (local/município).
+ * cal (opcional, por UF, medido no 1º × 2º turno de 2022): comp = eleitores do 2º turno / do 1º; kt2 = tempo real de
+ * urna no 2º turno / o estimado pelo 1º; kme = tempo de mesa do 2º / do 1º; perfil2 = horário de chegada no 2º turno;
+ * sempre = usar perfil2 para toda a procura (não só onde a urna ficou no limite).
+ */
+export function analisa(d, h0 = 8, perfil = null, cal = null) {
   const ns = d.ns || 1;
-  const v = d.v.map((x) => x / ns); // por urna
+  const comp = cal?.comp ?? 1;
+  const v = d.v.map((x) => (x / ns) * comp); // por urna, já com a variação de comparecimento do 2º turno
   const o1 = chanceFila(d.v, d.q, Math.max(1, Math.round((ns > 1 ? 15 : 30) / FAIXA_MIN))); // ±15 min num local, ±30 min numa urna só
-  const t2 = d.t2 ?? (d.t1 ? d.t1 * 0.4 : 40);
-  const { o: sim } = simula2(procura(v, o1, perfil, d.t1, d.me), t2, d.me);
+  const t2 = (d.t2 ?? (d.t1 ? d.t1 * 0.4 : 40)) * (cal?.kt2 ?? 1);
+  const me2 = (d.me ?? MESA_PADRAO) * (cal?.kme ?? 1);
+  const perfilChegada = cal?.perfil2 || perfil;
+  const chegadas = cal?.sempre && perfilChegada
+    ? (() => { const n = demanda(v).reduce((a, b) => a + b, 0); return perfilChegada.map((p) => n * p); })()
+    : procura(v, o1, perfilChegada, d.t1, d.me);
+  const { o: sim } = simula2(chegadas, t2, me2);
   const o2 = suaviza(sim).map(Math.round);
   const r1 = horarios(o1), r2 = horarios(o2);
   const me = d.me ?? MESA_PADRAO;
   const w1 = o1.map((x) => espera(x / 100, (d.t1 || 0) + me));
-  const w2 = o2.map((x) => espera(x / 100, t2 + me));
+  const w2 = o2.map((x) => espera(x / 100, t2 + me2));
   const cheio1 = o1.slice(0, OFICIAIS).filter((x) => x >= 75).length; // faixas em que 3 de 4 pegaram fila
   return {
     h0, o1, o2, w1, w2, r1, r2,
-    t1: d.t1, t2: d.t2, me: d.me, n: d.n,
-    fator: fator(d.t1, t2, d.me),
+    t1: d.t1, t2: Math.round(t2), me: d.me, n: d.n,
+    fator: d.t1 ? (d.t1 + me) / (t2 + me2) : null,
     horasFila1: (cheio1 * FAIXA_MIN) / 60,
     media1: o1.slice(0, OFICIAIS).reduce((x, y) => x + y, 0) / OFICIAIS, // % média com fila no 1º turno
     filaODia: r1.mMelhor >= 70,

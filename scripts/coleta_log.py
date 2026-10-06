@@ -45,7 +45,8 @@ DIA = b"04/10/2026"
 BASE = f"https://resultados.tse.jus.br/oficial/ele2026/arquivo-urna/{PLEITO}"
 
 FIM = b"O voto do eleitor foi computado"
-INICIO = b"Identificador do eleitor digitado pelo mes"  # "mesário" vem em latin-1
+# início do atendimento: 2026 "Identificador do eleitor digitado pelo mesário"; 2022 "Título digitado pelo mesário"
+INICIOS = (b"Identificador do eleitor digitado pelo mes", b"tulo digitado pelo mes")  # "mesário" vem em latin-1
 HABILITADO = b"Eleitor foi habilitado"
 PRONTA = b"Urna pronta para receber votos"
 CONFIRMADO = b"Voto confirmado para ["
@@ -106,12 +107,13 @@ def segundos(linha):
     return int(linha[11:13]) * 3600 + int(linha[14:16]) * 60 + int(linha[17:19])
 
 
-def extrai(arquivos):
-    """Eventos do dia da eleição, sem repetir linhas (o .jez pode trazer o log de mais de uma urna da seção)."""
+def extrai(arquivos, dia=DIA):
+    """Eventos do dia da eleição, sem repetir linhas (o .jez pode trazer o log de mais de uma urna da seção, e o log do
+    2º turno traz também o do 1º, que a data separa)."""
     linhas = set()
     for _, b in arquivos:
         for ln in b.split(b"\n"):
-            if ln.startswith(DIA) and (FIM in ln or INICIO in ln or HABILITADO in ln or PRONTA in ln or CONFIRMADO in ln):
+            if ln.startswith(dia) and (FIM in ln or any(i in ln for i in INICIOS) or HABILITADO in ln or PRONTA in ln or CONFIRMADO in ln):
                 linhas.add(ln.rstrip(b"\r"))
     ab, fins, durs, idents, pres, govs, prim = None, [], [], [], [], [], []
     inicio = habil = ultimo = None
@@ -120,7 +122,7 @@ def extrai(arquivos):
         t = segundos(ln)
         if PRONTA in ln:
             ab = t if ab is None else min(ab, t)
-        elif INICIO in ln:
+        elif any(i in ln for i in INICIOS):
             if inicio is None:
                 inicio = t
         elif HABILITADO in ln:
