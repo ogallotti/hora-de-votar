@@ -11,10 +11,14 @@ const fmt = (n, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDigits: d, 
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
+// Versão do formato dos dados: mudar sempre que public/data/ mudar de formato (ex.: faixas de 15 → 5 min).
+// Vai na URL para o navegador não misturar arquivo antigo em cache com código novo.
+const VERSAO_DADOS = "5min-1";
 const cache = new Map();
 function json(url) {
   if (!cache.has(url)) {
-    cache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status} ${url}`); return r.json(); })
+    const com = url.startsWith("/data/") ? `${url}?v=${VERSAO_DADOS}` : url;
+    cache.set(url, fetch(com).then((r) => { if (!r.ok) throw new Error(`${r.status} ${url}`); return r.json(); })
       .catch((e) => { cache.delete(url); throw e; }));
   }
   return cache.get(url);
@@ -134,7 +138,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   const ev0 = juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, ev1 = juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA;
   sub += `Evite ${juntas ? "das " : ""}<span class="tr">${hora(ev0, a.h0)} às ${hora(ev1, a.h0)}</span>. `;
   sub += a.filaODia
-    ? `No 1º turno, ${quem} teve fila quase o dia todo: <strong>${r.dez} em cada 10</strong> esperaram.`
+    ? `No 1º turno, ${ctx.secao ? "sua seção" : "esse local"} teve fila quase o dia todo: <strong>${r.dez} em cada 10</strong> esperaram.`
     : `No 1º turno, <strong>${r.dez} em cada 10</strong> eleitores ${quem} pegaram fila.`;
   if (a.fator) sub += ` No 2º, com ${r.dois ? "dois votos" : "um voto só"}, a fila deve andar <strong>${fmt(a.fator)}× mais rápido</strong>.`;
   if (a.h0 !== 8) sub += ` Horário local: a votação vai das ${a.h0}h às ${a.h0 + 9}h.`;
