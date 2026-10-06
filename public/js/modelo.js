@@ -7,29 +7,37 @@ const MESA_PADRAO = 20;     // s entre um eleitor sair e o próximo ser identifi
 const JANELA = 4;           // 4 faixas = 1 h
 
 /**
- * Simula o 2º turno numa urna.
- * Hipótese simples: a procura de cada faixa é a mesma do 1º turno. Ela é o maior de dois números:
- *   (a) quantos começaram a votar na faixa (quem votou depois do encerramento já estava na fila: volta à última hora);
- *   (b) a % que pegou fila vezes a capacidade da urna no 1º turno. Com fila, (a) fica preso à capacidade e subestima
- *       a procura; numa fila simples, a chance de esperar é a ocupação, então (b) recupera essa pressão.
- * A fila é simulada minuto a minuto com o tempo de urna do 2º turno (t2, medido na seção) mais o tempo de mesa (me).
- *
- * @param {number[]} v   eleitores que começaram a votar em cada faixa no 1º turno (por urna)
- * @param {number} t2    segundos de urna por eleitor no 2º turno (estimativa medida)
- * @param {number} [me]  segundos de mesa entre eleitores
- * @param {number[]} [f1] % de eleitores que pegaram fila em cada faixa no 1º turno
- * @param {number} [t1]  segundos de urna por eleitor no 1º turno
+ * Procura (chegadas) de cada faixa oficial numa urna, a mesma do 1º turno. Simples:
+ *   - Urna sem fila: chegar = começar a votar. Usa quantos começaram em cada faixa (quem votou depois do
+ *     encerramento já estava na fila: volta às 2 últimas horas).
+ *   - Urna no limite: começar a votar fica preso à capacidade e não diz quando as pessoas chegaram. Aí os eleitores
+ *     da urna são distribuídos pelo perfil de chegada das seções sem fila do mesmo estado (perfil, soma 1).
+ *   Na proporção w das faixas em que a urna ficou no limite (% com fila ≥ 90: quase todos esperaram).
+ * Sem perfil, cai para o maior entre quem começou e a % com fila vezes a capacidade do 1º turno.
+ */
+export function procura(v, f1, perfil, t1, me = MESA_PADRAO) {
+  const base = demanda(v);
+  const w = f1.slice(0, OFICIAIS).filter((x) => x >= 90).length / OFICIAIS;
+  if (perfil && w > 0) {
+    const n = base.reduce((a, b) => a + b, 0);
+    return base.map((x, k) => (1 - w) * x + w * n * (perfil[k] || 0));
+  }
+  if (t1) {
+    const cap1 = (FAIXA_MIN * 60) / (t1 + (me ?? MESA_PADRAO));
+    return base.map((x, k) => Math.max(x, ((f1[k] || 0) / 100) * cap1));
+  }
+  return base;
+}
+
+/**
+ * Simula o 2º turno numa urna: fila minuto a minuto com as chegadas de cada faixa e o tempo de urna do 2º turno
+ * (t2, medido na seção) mais o tempo de mesa (me).
  * @returns {{o: number[], espera: number[]}} ocupação (% do tempo da faixa) e espera média (min) por faixa.
- *   Numa fila simples, a chance de quem chega encontrar a urna ocupada é a ocupação: por isso o comparamos com a
+ *   Numa fila simples, a chance de quem chega encontrar a urna ocupada é a ocupação: por isso a comparamos com a
  *   % de eleitores que pegaram fila no 1º turno.
  */
-export function simula2(v, t2, me = MESA_PADRAO, f1 = null, t1 = null) {
+export function simula2(chegadas, t2, me = MESA_PADRAO) {
   const s = Math.max(10, t2 + (me ?? MESA_PADRAO));
-  const chegadas = demanda(v);
-  if (f1 && t1) {
-    const cap1 = (FAIXA_MIN * 60) / (t1 + (me ?? MESA_PADRAO)); // eleitores por faixa no 1º turno
-    for (let k = 0; k < chegadas.length; k++) chegadas[k] = Math.max(chegadas[k], ((f1[k] || 0) / 100) * cap1);
-  }
   const cap = 60 / s; // eleitores por minuto
   const o = [], espera = [];
   let fila = 0;
@@ -50,16 +58,18 @@ export function simula2(v, t2, me = MESA_PADRAO, f1 = null, t1 = null) {
   return { o, espera };
 }
 
-/** Chegadas por faixa oficial: o 1º turno, com quem votou depois do encerramento devolvido à última hora. */
+const FIM = 8; // 2 h finais, onde entra quem já estava na fila no encerramento
+
+/** Chegadas por faixa oficial: o 1º turno, com quem votou depois do encerramento devolvido às 2 últimas horas. */
 export function demanda(v) {
   const d = v.slice(0, OFICIAIS);
   while (d.length < OFICIAIS) d.push(0);
   const depois = v.slice(OFICIAIS).reduce((a, b) => a + b, 0);
   if (depois > 0) {
-    const ult = d.slice(OFICIAIS - JANELA);
+    const ult = d.slice(OFICIAIS - FIM);
     const tot = ult.reduce((a, b) => a + b, 0);
-    for (let i = 0; i < JANELA; i++) {
-      d[OFICIAIS - JANELA + i] += tot > 0 ? (depois * ult[i]) / tot : depois / JANELA;
+    for (let i = 0; i < FIM; i++) {
+      d[OFICIAIS - FIM + i] += tot > 0 ? (depois * ult[i]) / tot : depois / FIM;
     }
   }
   return d;
@@ -126,12 +136,12 @@ export function fator(t1, t2, me = MESA_PADRAO) {
 }
 
 /** Tudo o que a tela de resultado precisa para uma urna (seção) ou média de urnas (local/município). */
-export function analisa(d, h0 = 8) {
+export function analisa(d, h0 = 8, perfil = null) {
   const ns = d.ns || 1;
   const v = d.v.map((x) => x / ns); // por urna
   const o1 = chanceFila(d.v, d.q, ns > 1 ? 1 : 2);
   const t2 = d.t2 ?? (d.t1 ? d.t1 * 0.4 : 40);
-  const { o: sim, espera } = simula2(v, t2, d.me, o1, d.t1);
+  const { o: sim, espera } = simula2(procura(v, o1, perfil, d.t1, d.me), t2, d.me);
   const o2 = suaviza(sim).map(Math.round);
   const r1 = horarios(o1), r2 = horarios(o2);
   const cheio1 = o1.slice(0, OFICIAIS).filter((x) => x >= 75).length; // faixas em que 3 de 4 pegaram fila

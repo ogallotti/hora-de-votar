@@ -9,7 +9,15 @@
 **Dados**
 - Fonte: log de cada urna (`log.jez`, zip com `logd.dat`), listado no `aux.json` de cada seção em `resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3220/`. Cada eleitor gera "Identificador do eleitor digitado pelo mesário" → … → "O voto do eleitor foi computado". O total de "computado" bate com o comparecimento do BU (78/78 seções conferidas em MA).
 - Coleta nacional: `gh workflow run coleta.yml` (fatias em paralelo, um IP por job; o TSE responde 429 por IP). Artefatos `log-<uf>-<k>de<n>` → `.cache/artefatos/`. Local: `python3 scripts/coleta_log.py --uf ma --limite 50`.
-- Build: `python3 scripts/build_data.py` lê os artefatos e o cadastro de locais e gera `public/data/` (versionado: é o que vai ao ar).
+- Urna trocada no meio do dia: o log da urna antiga vem num `.jez` dentro do `.jez`. A coleta abre os aninhados; para corrigir uma coleta antiga sem refazer tudo: `python3 scripts/coleta_log.py --uf <uf> --refaz` (grava `.cache/<uf>/log.refeitas.jsonl`, que o build usa por cima).
+- Conferência: `cd scripts && python3 confere_bu.py` compara o total de eleitores de cada log com o comparecimento do BU (resumo do quem-vota-em-quem). Esperado: ~100% iguais.
+- Build: `python3 scripts/build_data.py` lê os artefatos e o cadastro de locais e gera `public/data/` (versionado: é o que vai ao ar). OG: `node scripts/og.mjs` (servidor de pé).
+- Formato: `municipios.json` = `[[UF, código, nome, hora local de abertura, seções]]`; `m/<código>.json` = município com `locais` (`id` = `<zona>-<local>`, `n` nome, `e` endereço, `b` bairro, `a` nome antigo, `z`, `s` seções, `v`/`q` por faixa, `ns` urnas, `t1`/`t2`/`me`); `z/<código>-<zona>.json` = `{seção: {v, q, n, t1, t2, me} | {p: seção principal}}`; `br.json` = Brasil e `uf`, com `perfil` de chegada.
+
+**Modelo (não negociável: é o que o site afirma)**
+- Faixas de 15 min desde a abertura oficial. `v` = eleitores que começaram a votar; `q` = desses, quantos pegaram fila (intervalo desde o eleitor anterior até 2× o tempo típico de mesa da seção, de 30 a 75 s). Curva do 1º turno = % com fila, somando faixas vizinhas (`chanceFila` em `public/js/modelo.js`).
+- 2º turno (`procura` + `simula2`): tempo de urna `t2` = identificação + primeiro passo (ir à cabine e 1º voto) + presidente onde há 2º turno para governador (`GOV2` no build: AC, AM, DF, ES, RJ, RN, TO). Procura: urna folgada = quem começou a votar (quem votou após o encerramento volta às 2 últimas horas); urna no limite (% com fila ≥ 90) = eleitores da urna pelo `perfil` de chegada das seções sem fila do estado. Fila simulada minuto a minuto; a curva é a ocupação (= chance de esperar numa fila simples).
+- Texto sempre "no 1º turno foi assim" (medido) e "estimativa" para o 2º turno. Nunca prometer ausência de fila.
 
 **Gotchas**
 - Hora do log = hora local da urna. Desde 2022 a votação é no horário de Brasília em todo o país: no Acre a urna abre às 6h locais, no MT/MS/AM/RO/RR às 7h, em Noronha às 9h. O site mostra sempre a hora local (é a do relógio de quem vai votar).

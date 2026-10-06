@@ -150,6 +150,28 @@ def curva(r, h0):
     return v, q, lim
 
 
+def saturada(v, q, r=2, lim=90):
+    """Fração das faixas oficiais em que a urna ficou no limite (% com fila, somando vizinhas, de lim para cima: quase todos esperaram)."""
+    n = 0
+    for i in range(FAIXAS):
+        sv = sum(v[max(0, i - r): i + r + 1])
+        sq = sum(q[max(0, i - r): i + r + 1])
+        if sv and 100 * sq / sv >= lim:
+            n += 1
+    return n / FAIXAS
+
+
+def perfil(curvas):
+    """Perfil de chegada: soma das seções que nunca ficaram no limite (nelas, começar a votar = chegar),
+    normalizado para somar 1 nas 36 faixas oficiais. None se houver menos de 30 seções assim."""
+    livres = [v for v, q in curvas if saturada(v, q) == 0]
+    if len(livres) < 30:
+        return None
+    tot = [sum(v[i] for v in livres) for i in range(FAIXAS)]
+    s = sum(tot)
+    return [round(x / s, 5) for x in tot] if s else None
+
+
 def mediana(xs):
     xs = [x for x in xs if x is not None and x >= 0]
     return statistics.median(xs) if xs else None
@@ -210,6 +232,7 @@ def main():
     ufs = a.ufs.split(",") if a.ufs else UFS
     muns_out, br_uf = [], {}
     br_v, br_o, br_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
+    br_t, br_c = [], []
     for uf in ufs:
         rs = list(registros(uf))
         if not rs:
@@ -253,6 +276,9 @@ def main():
             loc["_t"] = loc.get("_t", []) + [t]
             secoes[(m, z)][s] = {"v": corta(v), "q": corta(q, len(v)), "n": len(r["f"]), **t}
         uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
+        uf_t = [d for ss in secoes.values() for d in ss.values() if d.get("t1")]
+        uf_c = [c for ls in locais.values() for l in ls.values() for c in l.get("_c", [])]
+        uf_perfil = perfil(uf_c)
         for m, ls in locais.items():
             mv, mo = soma(c for l in ls.values() for c in l["_c"])
             nm = sum(len(l["_c"]) for l in ls.values())
@@ -278,14 +304,19 @@ def main():
         for (m, z), ss in secoes.items():
             grava(OUT / "z" / f"{m}-{z}.json", {str(s): d for s, d in sorted(ss.items())})
         br_uf[uf.upper()] = {"v": corta(uf_v), "q": corta(uf_o, len(corta(uf_v))), "ns": uf_n,
-                             "h0": statistics.mode(h0_mun.values()) if h0_mun else 8}
+                             "h0": statistics.mode(h0_mun.values()) if h0_mun else 8, **junta_tempos(uf_t),
+                             "perfil": uf_perfil, "livres": sum(1 for v, q in uf_c if saturada(v, q) == 0)}
         if br_uf[uf.upper()]["h0"] == 8:  # Brasil no horário de Brasília: só soma quem abre às 8h locais
             for i in range(FAIXAS + EXTRA):
                 br_v[i] += uf_v[i]
                 br_o[i] += uf_o[i]
             br_n += uf_n
+            br_t += uf_t
+            br_c += uf_c
         log(f"{uf}: {len(por_sec)} seções com log, {sem_log} sem log, {len(locais)} municípios")
-    grava(OUT / "br.json", {"v": corta(br_v), "q": corta(br_o, len(corta(br_v))), "ns": br_n, "uf": br_uf})
+    grava(OUT / "br.json", {"v": corta(br_v), "q": corta(br_o, len(corta(br_v))), "ns": br_n, **junta_tempos(br_t),
+                            "perfil": perfil(br_c),
+                            "uf": br_uf})
     # municipios.json acumula entre execuções parciais (--ufs)
     idx = OUT / "municipios.json"
     antigos = [x for x in json.loads(idx.read_text())] if idx.exists() else []

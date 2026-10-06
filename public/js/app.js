@@ -1,4 +1,4 @@
-import { analisa, chanceFila, hora, duracao, OFICIAIS } from "./modelo.js";
+import { analisa, hora, duracao, OFICIAIS } from "./modelo.js";
 import { desenha } from "./grafico.js";
 
 const $ = (s) => document.querySelector(s);
@@ -228,9 +228,13 @@ function mostraCapa(msg) {
 }
 
 let ultimo = null;
-function mostraResultado(ctx) {
+const carregaBr = json("/data/br.json").catch(() => null);
+const perfilDe = (uf) => (br?.uf?.[uf]?.perfil) || (mun8(uf) ? br?.perfil : null);
+const mun8 = (uf) => (br?.uf?.[uf]?.h0 ?? 8) === 8;
+async function mostraResultado(ctx) {
+  await carregaBr;
   const { mun, local, d, secao, z } = ctx;
-  const a = analisa(d, mun.h0);
+  const a = analisa(d, mun.h0, perfilDe(mun.uf));
   ultimo = { ...ctx, a };
   $("#capa").hidden = true;
   const r = $("#resultado");
@@ -319,8 +323,11 @@ $("#baixar").addEventListener("click", async () => {
 
   x.fillStyle = "#bac3bd"; x.font = "500 52px Geist, sans-serif";
   x.fillText("No 2º turno, vou votar entre", 90, 470);
-  x.fillStyle = "#5ad394"; x.font = "700 200px Bricolage, sans-serif";
-  x.fillText(`${hora(a.r2.melhor, a.h0)} e ${hora(a.r2.melhor + 4, a.h0)}`, 82, 690);
+  const faixa = `${hora(a.r2.melhor, a.h0)} e ${hora(a.r2.melhor + 4, a.h0)}`;
+  let tam = 210;
+  do { x.font = `700 ${tam}px Bricolage, sans-serif`; tam -= 6; } while (x.measureText(faixa).width > W - 170 && tam > 80);
+  x.fillStyle = "#5ad394";
+  x.fillText(faixa, 82, 690);
   x.fillStyle = "#bac3bd"; x.font = "500 44px Geist, sans-serif";
   const lugar = [local?.n, secao ? `Zona ${z}, seção ${secao}` : null, `${mun.nome}, ${mun.uf}`].filter(Boolean);
   lugar.forEach((t, i) => quebra(x, t, 90, 800 + i * 60, W - 180, 1));
@@ -378,8 +385,9 @@ function quebra(x, t, X, Y, max) {
 // ------------------------------------------------------------ vitrine: Brasil
 let br = null;
 function desenhaBr(anima = true) {
-  desenha($("#grafico-br"), { h0: 8, o1: chanceFila(br.v, br.q, 1), mini: true, anima });
+  const a = analisa(br, 8, br.perfil);
+  desenha($("#grafico-br"), { h0: 8, o1: a.o1, o2: a.o2, mini: true, anima });
 }
-json("/data/br.json").then((d) => { br = d; desenhaBr(); }).catch(() => { $("#vitrine").hidden = true; });
+carregaBr.then((d) => { if (!d) { $("#vitrine").hidden = true; return; } br = d; desenhaBr(); });
 
 carregaMunicipios.then(rota);

@@ -37,14 +37,16 @@ function caminho(pts) {
  * @param {{h0:number, o1:number[], o2?:number[], melhor?:number, pico?:number, mini?:boolean, anima?:boolean}} op
  */
 export function desenha(alvo, op) {
-  const { h0 = 8, o1, o2, melhor, mini = false } = op;
+  const { h0 = 8, o2, melhor, mini = false } = op;
+  // depois do encerramento só aparece quem ainda estava na fila; a vitrine corta em 1 h
+  const o1 = mini ? op.o1.slice(0, OFICIAIS + 4) : op.o1;
   alvo.innerHTML = "";
   alvo.classList.toggle("anima", op.anima !== false);
   const W = Math.max(280, alvo.clientWidth), H = alvo.clientHeight || 300;
   const estreito = W < 520;
   const m = { t: 26, r: 10, b: 28, l: 38 };
   const ultimo = (xs) => { let k = xs.length - 1; while (k >= OFICIAIS && !xs[k]) k--; return k; };
-  const N = Math.max(OFICIAIS, ultimo(o1) + 1, o2 ? ultimo(o2) + 1 : 0);
+  const N = Math.max(OFICIAIS, ultimo(o1) + 1, o2 && !mini ? ultimo(o2) + 1 : 0);
   const x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r);
   const y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b);
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, "aria-hidden": "true" }, alvo);
@@ -92,8 +94,7 @@ export function desenha(alvo, op) {
 
   // 2º turno: linha
   if (o2) {
-    const p2 = o2.slice(0, N).map((v, i) => [x(i), y(v)]);
-    while (p2.length < N) p2.push([x(p2.length), y(0)]);
+    const p2 = o2.slice(0, Math.min(N, ultimo(o2) + 1)).map((v, i) => [x(i), y(v)]);
     const l2 = el("path", { class: "r2-linha", d: caminho(p2) }, svg);
     try { l2.style.setProperty("--comp", Math.ceil(l2.getTotalLength())); } catch { /* sem layout */ }
   }

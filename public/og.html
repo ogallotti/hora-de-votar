@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="robots" content="noindex">
+<title>og</title>
+<link rel="stylesheet" href="/css/app.css">
+<style>
+  html, body { width: 1200px; height: 630px; overflow: hidden; }
+  body { display: grid; grid-template-columns: 520px 1fr; gap: 40px; padding: 56px 60px; align-items: center; }
+  .marca { font-size: 30px; }
+  h1 { font-size: 64px; margin: 28px 0 22px; }
+  .url { font: 700 30px var(--display); color: var(--verde-texto); letter-spacing: -.02em; }
+  .grafico { height: 400px; }
+  .legenda { font-size: 17px; }
+</style>
+</head>
+<body>
+  <div>
+    <span class="marca">hora<span>de</span>votar</span>
+    <h1>Qual a melhor hora para votar no 2º turno?</h1>
+    <p class="url">horadevotar.com</p>
+  </div>
+  <div>
+    <div class="legenda">
+      <span class="leg leg-1"><i></i>Brasil, fila no 1º turno</span>
+      <span class="leg leg-2"><i></i>2º turno, estimativa</span>
+    </div>
+    <div class="grafico" id="g"></div>
+  </div>
+<script type="module">
+  import { analisa } from "/js/modelo.js";
+  import { desenha } from "/js/grafico.js";
+  const br = await (await fetch("/data/br.json")).json();
+  const a = analisa(br, 8, br.perfil);
+  desenha(document.getElementById("g"), { h0: 8, o1: a.o1, o2: a.o2, melhor: a.r2.melhor, mini: true, anima: false });
+  document.body.dataset.pronto = "1";
+</script>
+</body>
+</html>
