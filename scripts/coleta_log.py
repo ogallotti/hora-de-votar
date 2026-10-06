@@ -8,6 +8,9 @@ Saída: .cache/<uf>/log.jsonl (ou log.p<k>.jsonl com --parte), uma linha por se�
      "ab": "Urna pronta para receber votos" (segundos desde 0h, hora local da urna),
      "f": fim de cada eleitor ("O voto do eleitor foi computado"), em deltas de segundos (o 1º é absoluto),
      "d": duração de cada eleitor, do identificador digitado pelo mesário até o voto computado (-1 se não achou),
+     "h": identificação de cada eleitor, do identificador digitado até "Eleitor foi habilitado" (biometria; -1 se não achou),
+     "pr": tempo de cada eleitor no voto para presidente (da confirmação anterior até a de presidente; -1 se não votou),
+     "gv": idem para governador (base para estimar o 2º turno, que só tem esses dois cargos),
      "q": arquivos de log dentro do .jez}
 O log bruto (~85 KB por seção) é lido em memória e descartado.
 
@@ -42,6 +45,7 @@ FIM = b"O voto do eleitor foi computado"
 INICIO = b"Identificador do eleitor digitado pelo mes"  # "mesário" vem em latin-1
 HABILITADO = b"Eleitor foi habilitado"
 PRONTA = b"Urna pronta para receber votos"
+CONFIRMADO = b"Voto confirmado para ["
 
 
 def log(*a):
@@ -90,10 +94,11 @@ def extrai(arquivos):
     linhas = set()
     for _, b in arquivos:
         for ln in b.split(b"\n"):
-            if ln.startswith(DIA) and (FIM in ln or INICIO in ln or HABILITADO in ln or PRONTA in ln):
+            if ln.startswith(DIA) and (FIM in ln or INICIO in ln or HABILITADO in ln or PRONTA in ln or CONFIRMADO in ln):
                 linhas.add(ln.rstrip(b"\r"))
-    ab, fins, durs = None, [], []
-    inicio = habil = None
+    ab, fins, durs, idents, pres, govs = None, [], [], [], [], []
+    inicio = habil = ultimo = None
+    passos = {}
     for ln in sorted(linhas):  # mesma data: ordem lexicográfica = ordem temporal (o hash final desempata)
         t = segundos(ln)
         if PRONTA in ln:
@@ -103,14 +108,23 @@ def extrai(arquivos):
                 inicio = t
         elif HABILITADO in ln:
             if habil is None:
-                habil = t
+                habil = ultimo = t
+        elif CONFIRMADO in ln:
+            cargo = ln.split(CONFIRMADO, 1)[1].split(b"]", 1)[0].decode("latin-1")
+            if ultimo is not None:
+                passos[cargo] = passos.get(cargo, 0) + (t - ultimo)
+            ultimo = t
         elif FIM in ln:
             ini = inicio if inicio is not None else habil
             fins.append(t)
             durs.append(t - ini if ini is not None and t >= ini else -1)
-            inicio = habil = None
+            idents.append(habil - inicio if habil is not None and inicio is not None and habil >= inicio else -1)
+            pres.append(passos.get("Presidente", -1))
+            govs.append(passos.get("Governador", -1))
+            inicio = habil = ultimo = None
+            passos = {}
     deltas = [b - a for a, b in zip([0] + fins, fins)]
-    return {"ab": ab, "f": deltas, "d": durs}
+    return {"ab": ab, "f": deltas, "d": durs, "h": idents, "pr": pres, "gv": govs}
 
 
 def processa(uf, m, z, s):
