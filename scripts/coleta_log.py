@@ -11,6 +11,7 @@ Saída: .cache/<uf>/log.jsonl (ou log.p<k>.jsonl com --parte), uma linha por se�
      "h": identificação de cada eleitor, do identificador digitado até "Eleitor foi habilitado" (biometria; -1 se não achou),
      "pr": tempo de cada eleitor no voto para presidente (da confirmação anterior até a de presidente; -1 se não votou),
      "gv": idem para governador (base para estimar o 2º turno, que só tem esses dois cargos),
+     "p1": primeiro passo de cada eleitor, de habilitado até o 1º voto confirmado (inclui ir da mesa até a cabine),
      "q": arquivos de log dentro do .jez}
 O log bruto (~85 KB por seção) é lido em memória e descartado.
 
@@ -96,7 +97,7 @@ def extrai(arquivos):
         for ln in b.split(b"\n"):
             if ln.startswith(DIA) and (FIM in ln or INICIO in ln or HABILITADO in ln or PRONTA in ln or CONFIRMADO in ln):
                 linhas.add(ln.rstrip(b"\r"))
-    ab, fins, durs, idents, pres, govs = None, [], [], [], [], []
+    ab, fins, durs, idents, pres, govs, prim = None, [], [], [], [], [], []
     inicio = habil = ultimo = None
     passos = {}
     for ln in sorted(linhas):  # mesma data: ordem lexicográfica = ordem temporal (o hash final desempata)
@@ -112,6 +113,8 @@ def extrai(arquivos):
         elif CONFIRMADO in ln:
             cargo = ln.split(CONFIRMADO, 1)[1].split(b"]", 1)[0].decode("latin-1")
             if ultimo is not None:
+                if not passos:
+                    passos[""] = t - ultimo  # primeiro passo
                 passos[cargo] = passos.get(cargo, 0) + (t - ultimo)
             ultimo = t
         elif FIM in ln:
@@ -121,10 +124,11 @@ def extrai(arquivos):
             idents.append(habil - inicio if habil is not None and inicio is not None and habil >= inicio else -1)
             pres.append(passos.get("Presidente", -1))
             govs.append(passos.get("Governador", -1))
+            prim.append(passos.get("", -1))
             inicio = habil = ultimo = None
             passos = {}
     deltas = [b - a for a, b in zip([0] + fins, fins)]
-    return {"ab": ab, "f": deltas, "d": durs, "h": idents, "pr": pres, "gv": govs}
+    return {"ab": ab, "f": deltas, "d": durs, "h": idents, "pr": pres, "gv": govs, "p1": prim}
 
 
 def processa(uf, m, z, s):

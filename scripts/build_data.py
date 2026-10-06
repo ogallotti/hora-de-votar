@@ -42,6 +42,8 @@ FAIXAS = 36          # 9 h de votação
 EXTRA = 12           # até 3 h depois do horário oficial (fila no encerramento)
 CONFERENCIA = 30     # s de mesa antes do identificador digitado
 FILA = 60            # s: próximo eleitor em até 60 s = estava esperando
+# UFs com 2º turno para governador em 2026 (resultado oficial do 1º turno); nas demais o 2º turno é só presidente
+GOV2 = {"ac", "am", "df", "es", "rj", "rn", "to"}
 
 
 def log(*a):
@@ -131,6 +133,35 @@ def curva(r, h0):
     return v, occ
 
 
+def mediana(xs):
+    xs = [x for x in xs if x is not None and x >= 0]
+    return statistics.median(xs) if xs else None
+
+
+def tempos(r, gov2):
+    """t1: mediana do tempo de cada eleitor na urna no 1º turno (identificação + 5 cargos), em s;
+    t2: estimativa para o 2º turno, medida na seção = identificação + primeiro passo (ir até a cabine e votar no
+        1º cargo) + presidente onde também há governador. Conservadora: o 1º cargo do 1º turno (deputado federal)
+        tem 4 dígitos, o do 2º turno tem 2;
+    me: mediana do intervalo entre um eleitor sair e o próximo ser identificado, quando havia gente esperando (mesa)."""
+    t1 = mediana([d for d in r["d"] if d > 0])
+    h, pr, p1 = mediana(r.get("h", [])), mediana(r.get("pr", [])), mediana(r.get("p1", []))
+    t2 = h + p1 + ((pr or 0) if gov2 else 0) if h is not None and p1 is not None else None
+    fim, ant, gaps = 0, None, []
+    for df, d in zip(r["f"], r["d"]):
+        fim += df
+        if ant is not None and d >= 0 and 0 <= fim - d - ant <= FILA:
+            gaps.append(fim - d - ant)
+        ant = fim
+    me = mediana(gaps)
+    return {"t1": round(t1) if t1 else None, "t2": round(t2) if t2 else None, "me": round(me) if me is not None else None}
+
+
+def junta_tempos(ts):
+    return {k: (round(mediana([t[k] for t in ts])) if mediana([t[k] for t in ts]) is not None else None)
+            for k in ("t1", "t2", "me")} if ts else {}
+
+
 def abertura(rs):
     """Hora local da abertura oficial: a urna abre às 8h de Brasília (6h no Acre, 7h no MT etc.)."""
     hs = [round(r["ab"] / 3600) for r in rs if r.get("ab")]
@@ -210,9 +241,9 @@ def main():
                 continue
             v, occ = curva(r, h0)
             loc["_c"].append((v, occ))
-            durs = [d for d in r["d"] if d > 0]
-            secoes[(m, z)][s] = {"v": corta(v), "o": corta(pct(occ)), "n": len(r["f"]),
-                                 "dm": round(statistics.median(durs)) if durs else None}
+            t = tempos(r, uf in GOV2)
+            loc["_t"] = loc.get("_t", []) + [t]
+            secoes[(m, z)][s] = {"v": corta(v), "o": corta(pct(occ)), "n": len(r["f"]), **t}
         uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0.0] * (FAIXAS + EXTRA), 0
         for m, ls in locais.items():
             mv, mo = soma(c for l in ls.values() for c in l["_c"])
@@ -220,14 +251,17 @@ def main():
             out_locais = []
             for lid, l in sorted(ls.items(), key=lambda kv: kv[1]["n"]):
                 c = l.pop("_c")
+                l.update(junta_tempos(l.pop("_t", [])))
                 l["s"] = sorted(set(l["s"]))
                 if c:
                     lv, lo = soma(c)
-                    l["v"], l["o"] = corta(lv), corta(pct(lo, len(c)))
+                    l["v"], l["o"], l["ns"] = corta(lv), corta(pct(lo, len(c))), len(c)
                 l["id"] = lid
                 out_locais.append(l)
-            grava(OUT / "m" / f"{m}.json", {"uf": uf, "cd": m, "nome": nomes[m], "h0": h0_mun.get(m, 8),
-                                           "v": corta(mv), "o": corta(pct(mo, max(nm, 1))), "locais": out_locais})
+            mt = junta_tempos([{k: l.get(k) for k in ("t1", "t2", "me")} for l in out_locais if l.get("t1")])
+            grava(OUT / "m" / f"{m}.json", {"uf": uf, "cd": m, "nome": nomes[m], "h0": h0_mun.get(m, 8), **mt,
+                                           "v": corta(mv), "o": corta(pct(mo, max(nm, 1))), "ns": nm,
+                                           "locais": out_locais})
             muns_out.append([uf.upper(), m, nomes[m], h0_mun.get(m, 8)])
             for i in range(FAIXAS + EXTRA):
                 uf_v[i] += mv[i]
