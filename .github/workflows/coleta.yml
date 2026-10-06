@@ -1,0 +1,57 @@
+name: Coleta de logs de urna (TSE)
+
+# Baixa o log de urna de cada seção em fatias paralelas: cada job roda numa máquina com IP próprio, o que contorna
+# o limite de pedidos por IP do TSE. Cada job lê o log em memória e entrega só o horário de cada eleitor
+# (log.p<k>.jsonl.gz) como artefato; o log bruto é descartado. Depois: gh run download <id> -D .cache/artefatos
+# e scripts/build_data.py.
+on:
+  workflow_dispatch:
+    inputs:
+      ufs:
+        description: "UFs separadas por vírgula (vazio = todas)"
+        default: ""
+      tamanho:
+        description: "Seções por fatia"
+        default: "8000"
+
+permissions:
+  contents: read
+
+jobs:
+  fatias:
+    runs-on: ubuntu-latest
+    outputs:
+      matriz: ${{ steps.m.outputs.matriz }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: m
+        env:
+          UFS: ${{ inputs.ufs }}
+          TAMANHO: ${{ inputs.tamanho }}
+        run: echo "matriz=$(python3 scripts/fatias.py --ufs "$UFS" --tamanho "$TAMANHO")" >> "$GITHUB_OUTPUT"
+
+  coleta:
+    needs: fatias
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix: ${{ fromJSON(needs.fatias.outputs.matriz) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Logs de ${{ matrix.uf }} (${{ matrix.parte }})
+        run: python3 scripts/coleta_log.py --uf "${{ matrix.uf }}" --parte "${{ matrix.parte }}" --trabalhadores 10
+      - id: n
+        if: always()
+        run: |
+          gzip -9 .cache/${{ matrix.uf }}/log.p*.jsonl || true
+          echo "nome=log-${{ matrix.uf }}-$(echo '${{ matrix.parte }}' | sed 's|/|de|')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ steps.n.outputs.nome }}
+          path: |
+            .cache/${{ matrix.uf }}/log.p*.jsonl.gz
+            .cache/${{ matrix.uf }}/agregadas.p*.txt
+          retention-days: 30
