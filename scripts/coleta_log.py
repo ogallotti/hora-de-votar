@@ -3,6 +3,8 @@
 
 Uso:   python3 scripts/coleta_log.py --uf ma [--trabalhadores 10] [--parte 2/6] [--limite N]
        --parte k/n   só a k-ésima de n fatias contíguas das seções (para rodar em paralelo no GitHub Actions)
+       --refaz       recoleta só as seções da coleta nacional (.cache/artefatos/) cujo log trazia .jez aninhado
+                     (urna trocada) sem abrir; grava .cache/<uf>/log.refeitas.jsonl, que o build usa por cima
 Saída: .cache/<uf>/log.jsonl (ou log.p<k>.jsonl com --parte), uma linha por seção:
     {"m": município TSE, "z": zona, "s": seção,
      "ab": "Urna pronta para receber votos" (segundos desde 0h, hora local da urna),
@@ -69,8 +71,22 @@ def get(url, tentativas=8):
             time.sleep(1.5 * (t + 1))
 
 
-def arquivos_jez(dados):
-    """Devolve [(nome, bytes)] dos logs dentro do .jez (zip em 2026; 7z em eleições anteriores)."""
+def arquivos_jez(dados, prof=0):
+    """Devolve [(nome, bytes)] dos logs dentro do .jez (zip em 2026; 7z em eleições anteriores).
+    Urna trocada no meio do dia: o log da urna anterior vem num .jez dentro do .jez, aberto aqui também."""
+    out = []
+    for nome, b in _abre_jez(dados):
+        if nome.lower().endswith(".jez") and prof < 3:
+            try:
+                out += [(f"{nome}/{n}", x) for n, x in arquivos_jez(b, prof + 1)]
+            except RuntimeError:
+                out.append((nome, b))
+        else:
+            out.append((nome, b))
+    return out
+
+
+def _abre_jez(dados):
     if dados[:4] == b"PK\x03\x04":
         with zipfile.ZipFile(io.BytesIO(dados)) as z:
             return [(n, z.read(n)) for n in z.namelist() if not n.endswith("/")]
@@ -156,6 +172,7 @@ def main():
     ap.add_argument("--limite", type=int, default=0)
     ap.add_argument("--trabalhadores", type=int, default=10)
     ap.add_argument("--parte", default="")
+    ap.add_argument("--refaz", action="store_true")
     a = ap.parse_args()
     uf = a.uf.lower()
     cache = ROOT / ".cache" / uf
@@ -168,6 +185,16 @@ def main():
     if a.limite:
         lista = lista[: a.limite]
     sufixo = ""
+    if a.refaz:
+        import gzip
+        alvo = set()
+        for arq in sorted((ROOT / ".cache" / "artefatos").glob(f"log-{uf}-*/log.p*.jsonl.gz")):
+            for ln in gzip.open(arq, "rt"):
+                r = json.loads(ln)
+                if any(n.lower().endswith(".jez") for n in r.get("q", [])):
+                    alvo.add((r["m"], r["z"], r["s"]))
+        lista = [x for x in lista if (int(x[0]), int(x[1]), int(x[2])) in alvo]
+        sufixo = ".refeitas"
     if a.parte:
         k, n = (int(x) for x in a.parte.split("/"))
         lista = lista[(k - 1) * len(lista) // n: k * len(lista) // n]

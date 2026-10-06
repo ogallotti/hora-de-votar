@@ -92,11 +92,20 @@ def cadastro(uf):
 
 # ---------------------------------------------------------------- logs
 def registros(uf):
+    """Logs da coleta nacional, com as seções recoletadas (urna trocada, scripts/coleta_log.py --refaz) por cima."""
     arqs = sorted(CACHE.glob(f"artefatos/log-{uf}-*/log.p*.jsonl.gz"))
     if arqs:
+        ref = CACHE / uf / "log.refeitas.jsonl"
+        novos = {}
+        if ref.exists():
+            for ln in open(ref):
+                r = json.loads(ln)
+                novos[(r["m"], r["z"], r["s"])] = r
         for a in arqs:
             with gzip.open(a, "rt") as f:
-                yield from map(json.loads, f)
+                for ln in f:
+                    r = json.loads(ln)
+                    yield novos.get((r["m"], r["z"], r["s"]), r)
         return
     for a in sorted((CACHE / uf).glob("log*.jsonl")):
         with open(a) as f:
