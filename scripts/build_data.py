@@ -5,7 +5,8 @@ Uso: python3 scripts/build_data.py [--ufs ma,ac]
 Entradas: .cache/artefatos/log-<uf>-<k>de<n>/log.p<k>.jsonl.gz (coleta nacional) ou .cache/<uf>/log*.jsonl (local)
           .cache/locais/eleitorado_local_votacao_2026_<UF>.csv (baixado se faltar)
 Saídas (formato no README):
-    public/data/municipios.json         [[uf, código, nome, abertura, seções], ...] para a busca
+    public/data/municipios.json         [[uf, código, nome, abertura, seções, [lat, lon] do centro], ...]
+    public/data/idx/<UF>.json           [[município, id do local, nome, bairro, endereço, nome antigo], ...] (busca)
     public/data/m/<código>.json         locais do município, curva de cada local e do município
     public/data/z/<código>-<zona>.json  curva de cada seção da zona
     public/data/br.json                 curva do Brasil e de cada UF
@@ -70,6 +71,17 @@ def bonito(s):
         else:
             out.append("-".join(p[:1].upper() + p[1:].lower() for p in w.split("-")))
     return " ".join(out)
+
+
+def coord(lat, lon):
+    """Coordenadas do cadastro (2026 usa vírgula decimal; -1 = sem coordenada) → [lat, lon] com 4 casas, ou None."""
+    try:
+        a, b = float(lat.replace(",", ".")), float(lon.replace(",", "."))
+    except (ValueError, AttributeError):
+        return None
+    if a == -1 or b == -1 or not (-34 < a < 6 and -75 < b < -28):
+        return None
+    return [round(a, 4), round(b, 4)]
 
 
 def sem_acento(s):
@@ -259,6 +271,10 @@ def main():
             loc = locais[m].setdefault(lid, {
                 "n": bonito(row["NM_LOCAL_VOTACAO"]), "e": bonito(row["DS_ENDERECO"]), "b": bonito(row["NM_BAIRRO"]),
                 "z": z, "s": [], "_c": []})
+            if "g" not in loc:
+                g = coord(row["NR_LATITUDE"], row["NR_LONGITUDE"])
+                if g:
+                    loc["g"] = g
             orig = bonito(row["NM_LOCAL_VOTACAO_ORIGINAL"])
             if orig and orig != loc["n"]:
                 loc.setdefault("a", orig)  # nome antigo, para a busca achar quem procura pelo local de sempre
@@ -277,6 +293,7 @@ def main():
             secoes[(m, z)][s] = {"v": corta(v), "q": corta(q, len(v)), "n": len(r["f"]), **t}
         uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
         uf_t = [d for ss in secoes.values() for d in ss.values() if d.get("t1")]
+        idx_uf = []
         uf_c = [c for ls in locais.values() for l in ls.values() for c in l.get("_c", [])]
         uf_perfil = perfil(uf_c)
         for m, ls in locais.items():
@@ -296,11 +313,17 @@ def main():
             grava(OUT / "m" / f"{m}.json", {"uf": uf.upper(), "cd": m, "nome": nomes[m], "h0": h0_mun.get(m, 8), **mt,
                                            "v": corta(mv), "q": corta(mo, len(corta(mv))), "ns": nm,
                                            "locais": out_locais})
-            muns_out.append([uf.upper(), m, nomes[m], h0_mun.get(m, 8), sum(len(l["s"]) for l in out_locais)])
+            gs = [l["g"] for l in out_locais if l.get("g")]
+            centro = [round(statistics.median(g[0] for g in gs), 3), round(statistics.median(g[1] for g in gs), 3)] if gs else None
+            muns_out.append([uf.upper(), m, nomes[m], h0_mun.get(m, 8), sum(len(l["s"]) for l in out_locais), centro])
+            for l in out_locais:
+                if l.get("v"):
+                    idx_uf.append([m, l["id"], l["n"], l["b"], l["e"], l.get("a", "")])
             for i in range(FAIXAS + EXTRA):
                 uf_v[i] += mv[i]
                 uf_o[i] += mo[i]
             uf_n += nm
+        grava(OUT / "idx" / f"{uf.upper()}.json", idx_uf)
         for (m, z), ss in secoes.items():
             grava(OUT / "z" / f"{m}-{z}.json", {str(s): d for s, d in sorted(ss.items())})
         br_uf[uf.upper()] = {"v": corta(uf_v), "q": corta(uf_o, len(corta(uf_v))), "ns": uf_n,

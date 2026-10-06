@@ -71,3 +71,13 @@ test("urna no limite usa o perfil de chegada das seções sem fila", () => {
   const sem = procura(v, Array(OFICIAIS).fill(10), perfil, 110, 20); // urna folgada: fica com o que viu
   assert.deepEqual(sem.map(Math.round), v);
 });
+
+test("segundo melhor horário não sobrepõe o primeiro", () => {
+  const o = Array(OFICIAIS).fill(80);
+  for (let i = 10; i < 14; i++) o[i] = 10;
+  for (let i = 24; i < 28; i++) o[i] = 20;
+  const r = horarios(o);
+  assert.ok(r.melhor >= 9 && r.melhor <= 11);
+  assert.ok(Math.abs(r.segundo - r.melhor) >= 4);
+  assert.ok(r.segundo >= 23 && r.segundo <= 25);
+});

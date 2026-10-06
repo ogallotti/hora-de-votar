@@ -2,6 +2,8 @@
 // Funções puras (sem DOM): rodam no navegador e nos testes (node --test).
 
 export const FAIXA_MIN = 15;
+/** UFs com 2º turno para governador em 2026 (resultado oficial do 1º turno); nas demais, só presidente. */
+export const GOV2 = ["AC", "AM", "DF", "ES", "RJ", "RN", "TO"];
 export const OFICIAIS = 36; // 9 h de votação (8h às 17h de Brasília, na hora local da urna)
 const MESA_PADRAO = 20;     // s entre um eleitor sair e o próximo ser identificado, quando há fila
 const JANELA = 4;           // 4 faixas = 1 h
@@ -97,19 +99,27 @@ export function suaviza(xs, r = 1) {
 }
 
 /**
- * Melhor e pior hora cheia dentro do horário oficial (janela de 1 h que começa em qualquer faixa).
+ * Melhor e pior hora cheia dentro do horário oficial (janela de 1 h que começa em qualquer faixa), e a segunda
+ * melhor sem sobrepor a primeira (para não mandar todo mundo para o mesmo horário).
  * Termina no máximo 15 min antes do encerramento: chegar em cima da hora é arriscado.
  */
 export function horarios(o) {
   const so = suaviza(o.slice(0, OFICIAIS).concat(Array(Math.max(0, OFICIAIS - o.length)).fill(0)));
   const ultimaIni = OFICIAIS - JANELA - 1;
+  const media = (i) => so.slice(i, i + JANELA).reduce((a, b) => a + b, 0) / JANELA;
   let melhor = 0, pior = 0, mMelhor = Infinity, mPior = -Infinity;
   for (let i = 0; i <= ultimaIni; i++) {
-    const m = so.slice(i, i + JANELA).reduce((a, b) => a + b, 0) / JANELA;
+    const m = media(i);
     if (m < mMelhor - 0.5) { mMelhor = m; melhor = i; } // empate: o mais cedo
     if (m > mPior + 0.5) { mPior = m; pior = i; }
   }
-  return { melhor, pior, mMelhor, mPior };
+  let segundo = null, mSegundo = Infinity;
+  for (let i = 0; i <= ultimaIni; i++) {
+    if (Math.abs(i - melhor) < JANELA) continue;
+    const m = media(i);
+    if (m < mSegundo - 0.5) { mSegundo = m; segundo = i; }
+  }
+  return { melhor, pior, mMelhor, mPior, segundo, mSegundo };
 }
 
 /** Faixa i → "13h15" na hora local, a partir da hora de abertura h0. */
@@ -150,6 +160,7 @@ export function analisa(d, h0 = 8, perfil = null) {
     t1: d.t1, t2: d.t2, me: d.me, n: d.n,
     fator: fator(d.t1, t2, d.me),
     horasFila1: (cheio1 * FAIXA_MIN) / 60,
+    media1: o1.slice(0, OFICIAIS).reduce((x, y) => x + y, 0) / OFICIAIS, // % média com fila no 1º turno
     filaODia: r1.mMelhor >= 70,
   };
 }

@@ -1,393 +1,310 @@
 import { analisa, hora, duracao, OFICIAIS } from "./modelo.js";
-import { desenha } from "./grafico.js";
+import { Grafico, FAIXAS_GRAFICO } from "./grafico.js";
+import { resolve, resumo, caminhoDe } from "./dados.js";
+import { criaBusca } from "./busca.js";
+import { fimDaUrna, alternaSom, somLigado } from "./som.js";
 
 const $ = (s) => document.querySelector(s);
 const SEGUNDO_TURNO = new Date(2026, 9, 25);
 const SITE = "horadevotar.com";
+const fmt = (n, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 const cache = new Map();
-async function json(url) {
+function json(url) {
   if (!cache.has(url)) {
-    cache.set(url, fetch(url).then((r) => {
-      if (!r.ok) throw new Error(`${r.status} ${url}`);
-      return r.json();
-    }).catch((e) => { cache.delete(url); throw e; }));
+    cache.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(`${r.status} ${url}`); return r.json(); })
+      .catch((e) => { cache.delete(url); throw e; }));
   }
   return cache.get(url);
 }
 
-const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-const fmt = (n, d = 1) => n.toLocaleString("pt-BR", { minimumFractionDigits: d, maximumFractionDigits: d });
-const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-// ------------------------------------------------------------ contagem
+// ------------------------------------------------------------ topo
 (function contagem() {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const dias = Math.round((SEGUNDO_TURNO - hoje) / 864e5);
   const el = $("#contagem");
-  if (dias > 1) el.innerHTML = `2º turno em <strong>${dias} dias</strong>, 25/10`;
-  else if (dias === 1) el.innerHTML = `2º turno é <strong>amanhã</strong>`;
-  else if (dias === 0) el.innerHTML = `<strong>Hoje é dia de votar</strong>, até 17h de Brasília`;
+  if (dias > 1) el.innerHTML = `faltam <strong>${dias} dias</strong> · 25/10`;
+  else if (dias === 1) el.innerHTML = "2º turno é <strong>amanhã</strong>";
+  else if (dias === 0) el.innerHTML = "<strong>Hoje é dia de votar</strong>";
   else el.textContent = "Eleições 2026";
 })();
+function pintaSom() {
+  const b = $("#som"), on = somLigado();
+  b.setAttribute("aria-pressed", String(on));
+  b.setAttribute("aria-label", on ? "Som da urna ligado" : "Som da urna desligado");
+  b.querySelector("use").setAttribute("href", on ? "#i-som" : "#i-mudo");
+}
+$("#som").addEventListener("click", () => { alternaSom(); pintaSom(); if (somLigado()) fimDaUrna(); });
+pintaSom();
 
-// ------------------------------------------------------------ combobox simples
-function combobox(input, lista, buscar, escolher) {
-  let itens = [], ativo = -1;
-  const pinta = () => {
-    lista.innerHTML = itens.length
-      ? itens.map((it, i) => `<li role="option" id="${lista.id}-${i}" aria-selected="${i === ativo}"><span class="t">${esc(it.t)}</span>${it.d ? `<span class="d">${esc(it.d)}</span>` : ""}</li>`).join("")
-      : `<li class="vazio" role="option" aria-disabled="true">Nada encontrado</li>`;
-    lista.hidden = false;
-    input.setAttribute("aria-expanded", "true");
-    if (ativo >= 0) { input.setAttribute("aria-activedescendant", `${lista.id}-${ativo}`); lista.children[ativo]?.scrollIntoView({ block: "nearest" }); }
-  };
-  const fecha = () => { lista.hidden = true; input.setAttribute("aria-expanded", "false"); input.removeAttribute("aria-activedescendant"); };
-  const atualiza = () => {
-    const q = input.value;
-    itens = buscar(q);
-    ativo = itens.length ? 0 : -1;
-    if (!q.trim() && !itens.length) return fecha();
-    pinta();
-  };
-  input.addEventListener("input", atualiza);
-  input.addEventListener("focus", () => { if (input.value.trim() || buscar("").length) atualiza(); });
-  input.addEventListener("keydown", (e) => {
-    if (lista.hidden && e.key === "ArrowDown") return atualiza();
-    if (e.key === "ArrowDown") { ativo = Math.min(itens.length - 1, ativo + 1); pinta(); e.preventDefault(); }
-    else if (e.key === "ArrowUp") { ativo = Math.max(0, ativo - 1); pinta(); e.preventDefault(); }
-    else if (e.key === "Enter") { if (!lista.hidden && itens[ativo]) { e.preventDefault(); escolher(itens[ativo]); fecha(); } }
-    else if (e.key === "Escape") fecha();
-  });
-  lista.addEventListener("pointerdown", (e) => {
-    const li = e.target.closest("li[id]");
-    if (!li) return;
-    e.preventDefault();
-    escolher(itens[+li.id.split("-").pop()]);
-    fecha();
-  });
-  input.addEventListener("blur", () => setTimeout(fecha, 120));
-  return { fecha };
+// entrada em sequência
+["#cabeca", "#busca", "#palco-grafico"].forEach((s, i) => { $(s).classList.add("entra"); $(s).style.setProperty("--i", i); });
+
+// ------------------------------------------------------------ leitura da régua (bonecos)
+function bonecos(alvo) {
+  alvo.innerHTML = Array.from({ length: 10 }, (_, k) => `<svg style="--k:${k}" viewBox="0 0 256 256"><use href="#i-pessoa"/></svg>`).join("");
+  return [...alvo.children];
+}
+const b1 = bonecos($("#b1")), b2 = bonecos($("#b2"));
+let h0 = 8;
+function leitura(i, cur) {
+  const o1 = Math.round(cur.o1[i] || 0), o2 = Math.round(cur.o2[i] || 0);
+  const k1 = Math.round(o1 / 10), k2 = Math.round(o2 / 10);
+  b1.forEach((e, k) => e.classList.toggle("on", k < k1));
+  b2.forEach((e, k) => e.classList.toggle("on", i < OFICIAIS && k < k2));
+  $("#l-hora").textContent = hora(i, h0);
+  $("#l-faixa").textContent = i < OFICIAIS ? `às ${hora(i + 1, h0)}` : "após o encerramento";
+  $("#l1").innerHTML = `<b>${k1} de 10</b> esperaram`;
+  $("#l2").innerHTML = i < OFICIAIS ? `<b>${k2} de 10</b> devem esperar` : "urna fechada";
 }
 
-// ------------------------------------------------------------ estado da busca
-const estado = { mun: null, dados: null, local: null, secao: null, modoNumero: false };
+const grafico = new Grafico($("#grafico"), {
+  aoMover: (i, cur) => { leitura(i, cur); $("#arraste").classList.toggle("some", grafico.mexeu); },
+  aoEntrarMelhor: () => { try { navigator.vibrate?.(8); } catch { /* sem vibração */ } },
+});
+$(".legenda").addEventListener("click", (e) => {
+  const b = e.target.closest(".leg");
+  if (!b) return;
+  const outro = $(`.leg[data-serie="${b.dataset.serie === "1" ? 2 : 1}"]`);
+  const liga = b.getAttribute("aria-pressed") !== "true";
+  if (!liga && outro.getAttribute("aria-pressed") !== "true") return; // sempre sobra uma
+  b.setAttribute("aria-pressed", String(liga));
+  grafico.series({ r1: $('.leg[data-serie="1"]').getAttribute("aria-pressed") === "true", r2: $('.leg[data-serie="2"]').getAttribute("aria-pressed") === "true" });
+});
 
-let municipios = [];
-const carregaMunicipios = json("/data/municipios.json").then((m) => {
-  municipios = m.map(([uf, cd, nome, h0, ns]) => ({ uf, cd, nome, h0, ns, k: norm(nome) }));
-  return municipios;
-}).catch(() => []);
-
-function buscaCidade(q) {
-  const n = norm(q);
-  if (!n) return [];
-  const out = [];
-  for (const m of municipios) {
-    let s = -1;
-    if (m.k.startsWith(n)) s = 0;
-    else if (m.k.includes(" " + n)) s = 1;
-    else if (m.k.includes(n)) s = 2;
-    if (s >= 0) out.push([s, m]);
-  }
-  out.sort((a, b) => a[0] - b[0] || b[1].ns - a[1].ns);
-  return out.slice(0, 8).map(([, m]) => ({ t: m.nome, d: m.uf, v: m }));
+// ------------------------------------------------------------ Brasil (capa)
+let br = null, primeira = true;
+async function mostraBrasil(modo) {
+  br ??= await json("/data/br.json");
+  const a = analisa(br, 8, br.perfil);
+  h0 = 8;
+  grafico.define({ h0, o1: a.o1, o2: a.o2, melhor: a.r2.melhor, segundo: a.r2.segundo }, modo);
+  $("#rotulo-grafico").textContent = `Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
+  return a;
+}
+function capa(modo = "transforma") {
+  document.body.classList.remove("resultado");
+  document.title = "Hora de votar · a melhor hora para votar no 2º turno";
+  $("#onde").hidden = true;
+  $("#titulo").innerHTML = 'Qual a melhor hora para votar no <span class="nw">2º turno?</span>';
+  $("#sub").textContent = "Lemos o log de cada urna do 1º turno, eleitor por eleitor. Busque a sua.";
+  $("#dica-busca").hidden = false;
+  $("#secoes").hidden = true;
+  $("#extras").hidden = true;
+  mostraBrasil(modo).then((a) => grafico.passeia(a.r2.melhor + 2, modo === "entrada" ? 1500 : 300)).catch(() => {});
 }
 
-function buscaLocal(q) {
-  const d = estado.dados;
-  if (!d) return [];
-  const toks = norm(q).split(" ").filter(Boolean);
-  const res = [];
-  for (const l of d.locais) {
-    l._k ??= norm(`${l.n} ${l.b} ${l.e} ${l.a || ""}`);
-    l._n ??= norm(l.n);
-    if (toks.every((t) => l._k.includes(t))) res.push(l);
-  }
-  if (!toks.length && res.length > 12) return []; // cidade grande: pede para digitar
-  const t0 = toks[0] || "";
-  res.sort((a, b) => (b._n.startsWith(t0) - a._n.startsWith(t0)) || a._n.localeCompare(b._n));
-  return res.slice(0, 40).map((l) => ({ t: l.n, d: [l.b, l.e].filter(Boolean).join(", "), v: l }));
-}
-
-const inCidade = $("#cidade"), inLocal = $("#local");
-combobox(inCidade, $("#lista-cidade"), buscaCidade, (it) => escolheCidade(it.v));
-combobox(inLocal, $("#lista-local"), buscaLocal, (it) => escolheLocal(it.v));
-inCidade.addEventListener("focus", () => carregaMunicipios, { once: true });
-
-async function escolheCidade(m) {
-  estado.mun = m; estado.local = null; estado.secao = null;
-  inCidade.value = `${m.nome}, ${m.uf}`;
-  erro("");
+// ------------------------------------------------------------ seção / local
+const RECENTES = "recentes";
+function recentes() { try { return JSON.parse(localStorage.getItem(RECENTES) || "[]"); } catch { return []; } }
+function guardaRecente(ctx) {
   try {
-    estado.dados = await json(`/data/m/${m.cd}.json`);
-  } catch {
-    estado.dados = null;
-    return erro("Ainda não temos os dados dessa cidade. Os logs estão sendo processados: tente de novo mais tarde.");
-  }
-  $("#campo-local").hidden = false;
-  $("#campo-secao").hidden = true;
-  inLocal.value = "";
-  atualizaConfirma();
-  if (!estado.modoNumero) inLocal.focus();
+    const it = ctx.secao
+      ? { tipo: "s", cd: ctx.mun.cd, z: ctx.z, s: ctx.secao, t: `Zona ${ctx.z}, seção ${ctx.secao}`, d: `${ctx.local?.n || ""} · ${ctx.mun.nome}, ${ctx.mun.uf}` }
+      : { tipo: "l", cd: ctx.mun.cd, lid: ctx.local.id, t: ctx.local.n, d: `${ctx.mun.nome}, ${ctx.mun.uf}` };
+    const chave = (r) => `${r.tipo}${r.cd}${r.z ?? ""}${r.s ?? ""}${r.lid ?? ""}`;
+    localStorage.setItem(RECENTES, JSON.stringify([it, ...recentes().filter((r) => chave(r) !== chave(it))].slice(0, 4)));
+  } catch { /* sem armazenamento */ }
 }
 
-function escolheLocal(l) {
-  estado.local = l; estado.secao = null;
-  inLocal.value = l.n;
-  const chips = $("#chips");
-  chips.innerHTML = l.s.map((s) => `<button type="button" class="chip" aria-pressed="false" data-s="${s}">${s}</button>`).join("") +
-    (l.s.length > 1 ? `<button type="button" class="chip chip-todas" aria-pressed="true" data-s="">Não sei</button>` : "");
-  if (l.s.length === 1) { estado.secao = l.s[0]; chips.firstElementChild.setAttribute("aria-pressed", "true"); }
-  $("#campo-secao").hidden = false;
-  atualizaConfirma();
+let atual = null;
+async function abre(rota, { gesto = false, empurra = true } = {}) {
+  if (gesto) { fimDaUrna(); const f = $("#fim"); f.classList.remove("mostra"); void f.offsetWidth; f.classList.add("mostra"); }
+  let ctx;
+  try { ctx = await resolve(json, rota); } catch {
+    $("#sub").innerHTML = "Não encontramos essa seção. Confira a zona e a seção no título de eleitor ou no app e-Título.";
+    return;
+  }
+  const r = resumo(ctx);
+  atual = { ctx, r };
+  document.body.classList.add("resultado");
+  const caminho = caminhoDe(ctx);
+  if (empurra && location.pathname !== caminho) history.pushState({ rota }, "", caminho);
+  document.title = `${r.titulo} · Hora de votar`;
+  guardaRecente(ctx);
+  busca?.defineCidade(municipios.find((m) => m.cd === ctx.mun.cd) || null);
+  $("#q").value = "";
+
+  const { a } = r;
+  h0 = a.h0;
+  const onde = $("#onde");
+  onde.hidden = false;
+  onde.innerHTML = r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join('<span class="sep">/</span>');
+  $("#titulo").innerHTML = `Vá entre <em>${r.ini} e ${r.fim}</em>`;
+  const quem = ctx.secao ? "da sua seção" : "desse local";
+  let sub = r.seg ? `Também tranquilo: <span class="tb">${r.seg[0]} às ${r.seg[1]}</span>. ` : "";
+  sub += a.filaODia
+    ? `No 1º turno, ${quem} teve fila quase o dia todo: <strong>${r.dez} em cada 10</strong> esperaram.`
+    : `No 1º turno, <strong>${r.dez} em cada 10</strong> eleitores ${quem} pegaram fila.`;
+  if (a.fator) sub += ` No 2º, com ${r.dois ? "dois votos" : "um voto só"}, a fila deve andar <strong>${fmt(a.fator)}× mais rápido</strong>.`;
+  if (a.h0 !== 8) sub += ` Horário local: a votação vai das ${a.h0}h às ${a.h0 + 9}h.`;
+  if (ctx.nota) sub += `<span class="nota">${esc(ctx.nota)}</span>`;
+  $("#sub").innerHTML = sub;
+  for (const s of ["#onde", "#titulo", "#sub"]) { const e = $(s); e.classList.remove("troca"); void e.offsetWidth; e.classList.add("troca"); }
+  $("#dica-busca").hidden = true;
+
+  // seções do local
+  const l = ctx.local;
+  const sec = $("#secoes");
+  if (l && l.s.length > 1) {
+    sec.hidden = false;
+    $("#chips").innerHTML = l.s.map((s) => `<button type="button" class="chip" data-s="${s}" aria-pressed="${s === ctx.secao}">${s}</button>`).join("") +
+      `<button type="button" class="chip chip-todas" data-s="" aria-pressed="${!ctx.secao}">Todas</button>`;
+    $("#secoes-rot").textContent = ctx.secao ? "Outras seções deste local" : "Qual a sua seção?";
+  } else sec.hidden = true;
+
+  $("#rotulo-grafico").textContent = ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`;
+  grafico.define({ h0, o1: a.o1, o2: a.o2, melhor: a.r2.melhor, segundo: a.r2.segundo }, primeira ? "entrada" : "transforma");
+  grafico.passeia(a.r2.melhor + 2, primeira ? 1600 : 900);
+  primeira = false;
+
+  // números
+  const nums = [];
+  if (a.t1 && a.t2) nums.push(["Tempo de cada eleitor na urna", `<span>${duracao(a.t1)}</span><span class="seta">→</span><span class="bom">${duracao(a.t2)}</span>`]);
+  if (a.fator) nums.push(["Quanto mais rápido a fila deve andar", `<span data-conta="${a.fator}" data-casas="1">${fmt(a.fator)}</span><span>×</span>`]);
+  nums.push(ctx.secao ? ["Eleitores que votaram nesta urna no 1º turno", `<span data-conta="${ctx.d.n}" data-casas="0">${ctx.d.n}</span>`] : ["Seções (urnas) neste local", `<span>${ctx.d.ns}</span>`]);
+  $("#numeros").innerHTML = nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
+  $("#extras").hidden = false;
+  contaNumeros();
+
+  // tabela
+  const linhas = [];
+  for (let i = 0; i < FAIXAS_GRAFICO; i++) {
+    if (i >= OFICIAIS && !a.o1[i] && !ctx.d.v[i]) continue;
+    linhas.push(`<tr><td>${hora(i, h0)} às ${hora(i + 1, h0)}</td><td>${Math.round((ctx.d.v[i] ?? 0) / (ctx.d.ns || 1))}</td><td>${a.o1[i] ?? 0}%</td><td>${i < OFICIAIS ? `${a.o2[i] ?? 0}%` : ""}</td></tr>`);
+  }
+  $("#tabela").innerHTML = `<thead><tr><th>Horário</th><th>Eleitores por urna</th><th>Pegaram fila</th><th>2º turno (estim.)</th></tr></thead><tbody>${linhas.join("")}</tbody>`;
+
+  // compartilhar
+  const url = `${location.origin}${caminho}`;
+  $("#zap").href = `https://wa.me/?text=${encodeURIComponent(`${r.texto} ${url}`)}`;
+  $("#xis").href = `https://twitter.com/intent/tweet?text=${encodeURIComponent(r.texto)}&url=${encodeURIComponent(url)}`;
+  $("#tg").href = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(r.texto)}`;
+  if (gesto) $("#palco-grafico").scrollIntoView({ behavior: reduz() ? "auto" : "smooth", block: "center" });
+}
+
+function contaNumeros() {
+  for (const e of document.querySelectorAll("[data-conta]")) {
+    const alvo = +e.dataset.conta, casas = +e.dataset.casas;
+    if (reduz()) continue;
+    const t0 = performance.now();
+    const passo = (t) => {
+      const k = Math.min(1, (t - t0) / 900), v = alvo * (1 - (1 - k) ** 3);
+      e.textContent = casas ? fmt(v, casas) : Math.round(v).toLocaleString("pt-BR");
+      if (k < 1) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  }
 }
 
 $("#chips").addEventListener("click", (e) => {
   const b = e.target.closest(".chip");
-  if (!b) return;
-  for (const c of $("#chips").children) c.setAttribute("aria-pressed", String(c === b));
-  estado.secao = b.dataset.s ? +b.dataset.s : null;
+  if (!b || !atual) return;
+  const { ctx } = atual;
+  abre(b.dataset.s ? { tipo: "s", cd: ctx.mun.cd, z: ctx.local.z, s: +b.dataset.s } : { tipo: "l", cd: ctx.mun.cd, lid: ctx.local.id }, { gesto: true });
 });
 
-$("#sei-secao").addEventListener("click", () => {
-  estado.modoNumero = !estado.modoNumero;
-  $("#zona-secao").hidden = !estado.modoNumero;
-  $("#sei-secao").textContent = estado.modoNumero ? "Prefiro buscar pelo local" : "Sei minha zona e seção";
-  $("#local").closest(".entrada").hidden = estado.modoNumero;
-  $("#campo-secao").hidden = estado.modoNumero || !estado.local;
-  if (estado.modoNumero) $("#zona").focus();
-  atualizaConfirma();
-});
-for (const id of ["#zona", "#secao"]) {
-  $(id).addEventListener("input", (e) => { e.target.value = e.target.value.replace(/\D/g, ""); atualizaConfirma(); });
+// ------------------------------------------------------------ compartilhar
+function aviso(t) { const a = $("#aviso"); a.textContent = t; clearTimeout(aviso.t); aviso.t = setTimeout(() => { a.textContent = ""; }, 2600); }
+async function copia(url) {
+  try { await navigator.clipboard.writeText(url); aviso("Link copiado. É só colar."); } catch { aviso(url); }
 }
-
-function atualizaConfirma() {
-  const ok = estado.dados && (estado.modoNumero ? $("#zona").value && $("#secao").value : estado.local);
-  $("#confirma").disabled = !ok;
-}
-
-function erro(msg) {
-  const e = $("#erro");
-  e.textContent = msg;
-  e.hidden = !msg;
-}
-
-$("#corrige").addEventListener("click", () => {
-  Object.assign(estado, { mun: null, dados: null, local: null, secao: null });
-  for (const i of [inCidade, inLocal, $("#zona"), $("#secao")]) i.value = "";
-  $("#campo-local").hidden = true;
-  $("#campo-secao").hidden = true;
-  erro("");
-  atualizaConfirma();
-  inCidade.focus();
+$("#copiar").addEventListener("click", () => copia(location.href));
+$("#compartilhar").addEventListener("click", async () => {
+  if (!atual) return;
+  const dados = { title: atual.r.titulo, text: atual.r.texto, url: location.href };
+  if (navigator.share) { try { await navigator.share(dados); return; } catch (e) { if (e?.name === "AbortError") return; } }
+  copia(location.href);
 });
 
-$("#busca").addEventListener("submit", (e) => {
-  e.preventDefault();
-  if ($("#confirma").disabled) return;
-  const cd = estado.mun.cd;
-  if (estado.modoNumero) location.hash = `#/${cd}/${+$("#zona").value}/${+$("#secao").value}`;
-  else if (estado.secao) location.hash = `#/${cd}/${estado.local.z}/${estado.secao}`;
-  else location.hash = `#/${cd}/${estado.local.id}`;
-});
-
-// ------------------------------------------------------------ rotas
-async function rota() {
-  const partes = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  if (partes.length < 2) return mostraCapa();
-  const cd = +partes[0];
-  let mun;
-  try { mun = await json(`/data/m/${cd}.json`); } catch { return mostraCapa("Não encontramos essa cidade."); }
-  if (partes.length === 2) {
-    const l = mun.locais.find((x) => x.id === partes[1]);
-    if (!l || !l.v) return mostraCapa("Não encontramos esse local de votação.");
-    return mostraResultado({ mun, local: l, d: l, rotulo: `média das ${l.ns} seções do local` });
-  }
-  const z = +partes[1], s = +partes[2];
-  const local = mun.locais.find((x) => x.z === z && x.s.includes(s));
-  let secoes;
-  try { secoes = await json(`/data/z/${cd}-${z}.json`); } catch { secoes = {}; }
-  let d = secoes[s], nota = "";
-  if (d?.p) { nota = `A seção ${s} vota na mesma urna da seção ${d.p}.`; d = secoes[d.p]; }
-  if (!d && local?.v) {
-    return mostraResultado({ mun, local, d: local, secao: s, z, rotulo: `média das ${local.ns} seções do local`,
-      nota: "Não há log publicado para a sua seção (urna substituída ou voto em cédula). Mostramos a média do local." });
-  }
-  if (!d) return mostraCapa(`Não encontramos a seção ${s} da zona ${z} em ${mun.nome}. Confira os números no título de eleitor ou no app e-Título.`);
-  mostraResultado({ mun, local, d, secao: s, z, nota });
-}
-window.addEventListener("hashchange", rota);
-
-function mostraCapa(msg) {
-  $("#resultado").hidden = true;
-  $("#capa").hidden = false;
-  if (msg) erro(msg);
-  document.title = "Hora de votar · a melhor hora para votar no 2º turno";
-}
-
-let ultimo = null;
-const carregaBr = json("/data/br.json").catch(() => null);
-const perfilDe = (uf) => (br?.uf?.[uf]?.perfil) || (mun8(uf) ? br?.perfil : null);
-const mun8 = (uf) => (br?.uf?.[uf]?.h0 ?? 8) === 8;
-async function mostraResultado(ctx) {
-  await carregaBr;
-  const { mun, local, d, secao, z } = ctx;
-  const a = analisa(d, mun.h0, perfilDe(mun.uf));
-  ultimo = { ...ctx, a };
-  $("#capa").hidden = true;
-  const r = $("#resultado");
-  r.hidden = false;
-  [...r.children].forEach((c, i) => c.style.setProperty("--i", i));
-  window.scrollTo({ top: 0 });
-
-  const ini = hora(a.r2.melhor, a.h0), fim = hora(a.r2.melhor + 4, a.h0);
-  const onde = [local ? `<strong>${esc(local.n)}</strong>` : "", secao ? `Zona ${z}, seção ${secao}` : ctx.rotulo, `${esc(mun.nome)}, ${mun.uf}`].filter(Boolean);
-  $("#onde").innerHTML = onde.join(" · ");
-  $("#manchete").innerHTML = `No 2º turno, vá entre <em>${ini} e ${fim}</em>.`;
-
-  const p1i = hora(a.r1.pior, a.h0), p1f = hora(a.r1.pior + 4, a.h0);
-  const m1i = hora(a.r1.melhor, a.h0), m1f = hora(a.r1.melhor + 4, a.h0);
-  const fx = a.fator ? `a fila deve andar <strong>${fmt(a.fator)}× mais rápido</strong>, porque são só ${["AC", "AM", "DF", "ES", "RJ", "RN", "TO"].includes(mun.uf) ? "dois votos" : "um voto"}` : "";
-  let txt;
-  if (a.filaODia) {
-    txt = `No 1º turno, ${secao ? "sua seção" : "esse local"} teve fila praticamente o dia todo: mesmo no horário mais calmo, ${Math.round(a.r1.mMelhor)}% dos eleitores esperaram.`;
-  } else {
-    txt = `No 1º turno, o pior momento foi das ${p1i} às ${p1f}, quando ${Math.round(a.r1.mPior)}% dos eleitores pegaram fila. Das ${m1i} às ${m1f}, foram ${Math.round(a.r1.mMelhor)}%.`;
-  }
-  if (fx) txt += ` No 2º turno, ${fx}.`;
-  if (Math.max(...a.o2.slice(0, OFICIAIS)) < 30) txt += " A estimativa é de pouca fila o dia todo.";
-  if (a.h0 !== 8) txt += ` Na sua cidade a votação vai das ${a.h0}h às ${a.h0 + 9}h, no horário local.`;
-  if (ctx.nota) txt += ` <span class="nota">${esc(ctx.nota)}</span>`;
-  $("#explica").innerHTML = txt;
-
-  const nums = [];
-  if (a.t1 && a.t2) nums.push(["Tempo de cada eleitor na urna", `${duracao(a.t1)}<span class="seta">→</span><span class="bom">${duracao(a.t2)}</span>`]);
-  if (a.fator) nums.push(["A fila deve andar", `${fmt(a.fator)}× <small>mais rápido</small>`]);
-  nums.push(secao ? ["Votaram na sua urna no 1º turno", `${d.n ?? ""} <small>eleitores</small>`] : ["Urnas neste local", `${d.ns}`]);
-  $("#numeros").innerHTML = nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
-
-  const g = $("#grafico");
-  g.setAttribute("aria-label", `Gráfico: no 1º turno, o pico de fila foi das ${p1i} às ${p1f}. No 2º turno, a estimativa indica o melhor horário das ${ini} às ${fim}.`);
-  desenha(g, { h0: a.h0, o1: a.o1, o2: a.o2, melhor: a.r2.melhor });
-
-  // tabela
-  const linhas = [];
-  for (let i = 0; i < Math.max(a.o1.length, OFICIAIS); i++) {
-    if (i >= OFICIAIS && !a.o1[i] && !d.v[i]) continue;
-    linhas.push(`<tr><td>${hora(i, a.h0)} às ${hora(i + 1, a.h0)}</td><td>${d.v[i] ?? 0}</td><td>${a.o1[i] ?? 0}%</td><td>${i < OFICIAIS ? `${a.o2[i] ?? 0}%` : ""}</td></tr>`);
-  }
-  $("#tabela").innerHTML = `<thead><tr><th>Horário</th><th>Eleitores</th><th>Pegaram fila</th><th>2º turno (estim.)</th></tr></thead><tbody>${linhas.join("")}</tbody>`;
-
-  const texto = `No 2º turno, o melhor horário para votar ${secao ? "na minha seção" : `no ${local?.n || "meu local"}`} é entre ${ini} e ${fim}. Veja o da sua:`;
-  $("#zap").href = `https://wa.me/?text=${encodeURIComponent(`${texto} ${location.href}`)}`;
-  document.title = `Vá entre ${ini} e ${fim} · Hora de votar`;
-}
-
-let redim;
-new ResizeObserver(() => {
-  clearTimeout(redim);
-  redim = setTimeout(() => {
-    if (ultimo && !$("#resultado").hidden) desenha($("#grafico"), { h0: ultimo.a.h0, o1: ultimo.a.o1, o2: ultimo.a.o2, melhor: ultimo.a.r2.melhor, anima: false });
-    if (br) desenhaBr(false);
-  }, 150);
-}).observe(document.body);
-
-$("#voltar").addEventListener("click", () => { history.pushState("", "", location.pathname); mostraCapa(); });
-
-$("#copiar").addEventListener("click", async () => {
-  const sp = $("#copiar span");
-  try { await navigator.clipboard.writeText(location.href); sp.textContent = "Link copiado"; }
-  catch { sp.textContent = "Copie da barra de endereço"; }
-  setTimeout(() => { sp.textContent = "Copiar link"; }, 2200);
-});
-
-// ------------------------------------------------------------ imagem para os stories (1080×1920)
+// imagem para os stories (1080×1920), no tema do site
 $("#baixar").addEventListener("click", async () => {
-  if (!ultimo) return;
+  if (!atual) return;
   await document.fonts.ready;
-  const c = $("#tela"), x = c.getContext("2d");
-  const { a, local, secao, z, mun } = ultimo;
+  const c = $("#tela"), x = c.getContext("2d"), { a } = atual.r, r = atual.r;
   const W = 1080, H = 1920;
-  const bg = x.createLinearGradient(0, 0, 0, H);
-  bg.addColorStop(0, "#0f1311"); bg.addColorStop(1, "#14201a");
-  x.fillStyle = bg; x.fillRect(0, 0, W, H);
-  x.fillStyle = "#edf1ee";
-  x.font = "700 56px Bricolage, sans-serif";
-  x.fillText("hora", 90, 170);
-  let w = x.measureText("hora").width;
-  x.fillStyle = "#939c96"; x.font = "500 56px Bricolage, sans-serif"; x.fillText("de", 90 + w, 170);
-  w += x.measureText("de").width;
-  x.fillStyle = "#edf1ee"; x.font = "700 56px Bricolage, sans-serif"; x.fillText("votar", 90 + w, 170);
-
-  x.fillStyle = "#bac3bd"; x.font = "500 52px Geist, sans-serif";
+  x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H);
+  x.textBaseline = "alphabetic";
+  const marca = (X, Y, s) => {
+    x.font = `650 ${s}px Geist, sans-serif`; x.fillStyle = "#0a0c0b"; x.fillText("hora", X, Y);
+    let w = x.measureText("hora").width; x.font = `500 ${s}px Geist, sans-serif`; x.fillStyle = "#9aa29e"; x.fillText("de", X + w, Y);
+    w += x.measureText("de").width; x.font = `650 ${s}px Geist, sans-serif`; x.fillStyle = "#0a0c0b"; x.fillText("votar", X + w, Y);
+  };
+  marca(90, 180, 54);
+  x.fillStyle = "#474e4a"; x.font = "500 46px Geist, sans-serif";
   x.fillText("No 2º turno, vou votar entre", 90, 470);
-  const faixa = `${hora(a.r2.melhor, a.h0)} e ${hora(a.r2.melhor + 4, a.h0)}`;
-  let tam = 210;
-  do { x.font = `700 ${tam}px Bricolage, sans-serif`; tam -= 6; } while (x.measureText(faixa).width > W - 170 && tam > 80);
-  x.fillStyle = "#5ad394";
-  x.fillText(faixa, 82, 690);
-  x.fillStyle = "#bac3bd"; x.font = "500 44px Geist, sans-serif";
-  const lugar = [local?.n, secao ? `Zona ${z}, seção ${secao}` : null, `${mun.nome}, ${mun.uf}`].filter(Boolean);
-  lugar.forEach((t, i) => quebra(x, t, 90, 800 + i * 60, W - 180, 1));
-
-  // gráfico
-  const gx = 90, gy = 1080, gw = W - 180, gh = 420, N = OFICIAIS;
+  const faixa = `${r.ini} e ${r.fim}`;
+  let tam = 200;
+  do { x.font = `700 ${tam}px Geist, sans-serif`; tam -= 6; } while (x.measureText(faixa).width > W - 180 && tam > 80);
+  x.fillStyle = "#0e7a45"; x.fillText(faixa, 84, 680);
+  x.fillStyle = "#474e4a"; x.font = "500 40px Geist, sans-serif";
+  r.lugar.forEach((t, i) => { let s = t; while (x.measureText(s).width > W - 180 && s.length > 4) s = s.slice(0, -2); x.fillText(s === t ? s : `${s.trim()}…`, 90, 790 + i * 56); });
+  const gx = 90, gy = 1060, gw = W - 180, gh = 460, N = OFICIAIS;
   const px = (i) => gx + ((i + 0.5) / N) * gw, py = (v) => gy + (1 - v / 100) * gh;
-  x.strokeStyle = "#2a332e"; x.lineWidth = 2;
+  x.strokeStyle = "#ecedec"; x.lineWidth = 2;
   for (const v of [0, 50, 100]) { x.beginPath(); x.moveTo(gx, py(v)); x.lineTo(gx + gw, py(v)); x.stroke(); }
-  const b0 = gx + (a.r2.melhor / N) * gw, b1 = gx + ((a.r2.melhor + 4) / N) * gw;
-  x.fillStyle = "rgba(90,211,148,.12)"; roundRect(x, b0, gy - 10, b1 - b0, gh + 10, 14); x.fill();
   x.beginPath(); x.moveTo(px(0), py(0));
   for (let i = 0; i < N; i++) x.lineTo(px(i), py(a.o1[i] || 0));
-  x.lineTo(px(N - 1), py(0)); x.closePath();
-  x.fillStyle = "rgba(140,152,145,.28)"; x.fill();
+  x.lineTo(px(N - 1), py(0)); x.closePath(); x.fillStyle = "#eceeec"; x.fill();
+  const b0 = gx + (a.r2.melhor / N) * gw, b1 = gx + ((a.r2.melhor + 4) / N) * gw;
+  x.fillStyle = "rgba(14,122,69,.1)"; x.beginPath(); x.roundRect(b0, gy - 12, b1 - b0, gh + 12, 18); x.fill();
   x.beginPath();
   for (let i = 0; i < N; i++) (i ? x.lineTo : x.moveTo).call(x, px(i), py(a.o2[i] || 0));
-  x.strokeStyle = "#5ad394"; x.lineWidth = 7; x.lineJoin = "round"; x.lineCap = "round"; x.stroke();
-  x.fillStyle = "#939c96"; x.font = "500 34px Geist, sans-serif";
-  for (let i = 0; i <= N; i += 8) { x.textAlign = i ? "center" : "left"; x.fillText(hora(i, a.h0), gx + (i / N) * gw, gy + gh + 56); }
+  x.strokeStyle = "#0e7a45"; x.lineWidth = 8; x.lineJoin = "round"; x.lineCap = "round"; x.stroke();
+  x.fillStyle = "#6b726e"; x.font = "500 32px Geist, sans-serif";
+  for (let i = 0; i <= N; i += 8) { x.textAlign = i ? "center" : "left"; x.fillText(hora(i, a.h0), gx + (i / N) * gw, gy + gh + 54); }
   x.textAlign = "left";
-  x.fillStyle = "rgba(140,152,145,.6)"; roundRect(x, 90, 1600, 44, 26, 6); x.fill();
-  x.fillStyle = "#bac3bd"; x.font = "500 34px Geist, sans-serif"; x.fillText("fila no 1º turno", 152, 1624);
-  x.fillStyle = "#5ad394"; roundRect(x, 480, 1609, 44, 8, 4); x.fill();
-  x.fillStyle = "#bac3bd"; x.fillText("2º turno, estimativa", 542, 1624);
-
-  x.fillStyle = "#edf1ee"; x.font = "650 46px Geist, sans-serif";
-  x.fillText("Veja o da sua seção em", 90, 1770);
-  x.fillStyle = "#5ad394"; x.font = "700 64px Bricolage, sans-serif";
-  x.fillText(SITE, 90, 1846);
-
-  const nome = `hora-de-votar-${secao ? `${z}-${secao}` : "local"}.png`;
+  x.fillStyle = "#eceeec"; x.beginPath(); x.roundRect(90, 1612, 40, 24, 6); x.fill();
+  x.fillStyle = "#474e4a"; x.font = "500 32px Geist, sans-serif"; x.fillText(`${r.dez} de 10 pegaram fila no 1º turno`, 146, 1634);
+  x.fillStyle = "#0e7a45"; x.beginPath(); x.roundRect(90, 1672, 40, 8, 4); x.fill();
+  x.fillStyle = "#474e4a"; x.fillText(a.fator ? `2º turno: fila ${fmt(a.fator)}× mais rápida` : "2º turno, estimativa", 146, 1688);
+  x.fillStyle = "#0a0c0b"; x.font = "600 44px Geist, sans-serif"; x.fillText("Veja o da sua seção em", 90, 1792);
+  x.fillStyle = "#0e7a45"; x.font = "700 62px Geist, sans-serif"; x.fillText(SITE, 90, 1862);
+  const nome = `hora-de-votar-${atual.ctx.secao ? `${atual.ctx.z}-${atual.ctx.secao}` : "local"}.png`;
   c.toBlob(async (blob) => {
     const arq = new File([blob], nome, { type: "image/png" });
-    if (navigator.canShare?.({ files: [arq] })) {
-      try { await navigator.share({ files: [arq], text: `Veja o da sua seção em ${SITE}` }); return; } catch { /* cancelado: baixa */ }
-    }
-    const u = URL.createObjectURL(blob);
-    const l = document.createElement("a");
-    l.href = u; l.download = nome; l.click();
-    setTimeout(() => URL.revokeObjectURL(u), 4000);
+    if (navigator.canShare?.({ files: [arq] })) { try { await navigator.share({ files: [arq], text: `Veja o da sua seção em ${SITE}` }); return; } catch { /* baixa */ } }
+    const u = URL.createObjectURL(blob), l = document.createElement("a");
+    l.href = u; l.download = nome; l.click(); setTimeout(() => URL.revokeObjectURL(u), 4000);
   }, "image/png");
 });
 
-function roundRect(x, X, Y, w, h, r) {
-  x.beginPath(); x.moveTo(X + r, Y); x.arcTo(X + w, Y, X + w, Y + h, r); x.arcTo(X + w, Y + h, X, Y + h, r);
-  x.arcTo(X, Y + h, X, Y, r); x.arcTo(X, Y, X + w, Y, r); x.closePath();
+// ------------------------------------------------------------ rotas
+function rotaDaUrl() {
+  if (window.__ROTA__) return window.__ROTA__;
+  const p = location.pathname.split("/").filter(Boolean);
+  if (p[0] === "s" && p.length === 4) return { tipo: "s", cd: p[1], z: p[2], s: p[3] };
+  if (p[0] === "l" && p.length === 3) return { tipo: "l", cd: p[1], lid: p[2] };
+  const h = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean); // links antigos (#/cd/z/s ou #/cd/local)
+  if (h.length === 3) return { tipo: "s", cd: h[0], z: h[1], s: h[2] };
+  if (h.length === 2) return { tipo: "l", cd: h[0], lid: h[1] };
+  return null;
 }
-function quebra(x, t, X, Y, max) {
-  let s = t;
-  while (x.measureText(s).width > max && s.length > 4) s = s.slice(0, -2);
-  x.fillText(s === t ? s : `${s.trim()}…`, X, Y);
-}
+window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = rotaDaUrl(); r ? abre(r, { empurra: false }) : capa(); });
 
-// ------------------------------------------------------------ vitrine: Brasil
-let br = null;
-function desenhaBr(anima = true) {
-  const a = analisa(br, 8, br.perfil);
-  desenha($("#grafico-br"), { h0: 8, o1: a.o1, o2: a.o2, mini: true, anima });
-}
-carregaBr.then((d) => { if (!d) { $("#vitrine").hidden = true; return; } br = d; desenhaBr(); });
+// ------------------------------------------------------------ início
+let busca = null, municipios = [];
+const ufGeo = { uf: null };
+fetch("/api/onde").then((r) => (r.ok ? r.json() : {})).then((d) => { ufGeo.uf = d.uf || null; }).catch(() => {});
+json("/data/municipios.json").then((ms) => {
+  municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
+  busca = criaBusca({
+    json, municipios, ufGeo: () => ufGeo.uf,
+    input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), perto: $("#perto"), confirma: $("#confirma"),
+    aoEscolher: (rota) => abre(rota, { gesto: true }), recentes,
+  });
+  if (atual) busca.defineCidade(municipios.find((m) => m.cd === atual.ctx.mun.cd) || null);
+});
+$("#dica-busca").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-q]");
+  if (!b) return;
+  const q = $("#q"); q.value = b.dataset.q; q.focus(); q.dispatchEvent(new Event("input"));
+});
 
-carregaMunicipios.then(rota);
+const inicial = rotaDaUrl();
+if (inicial) {
+  if (location.hash) history.replaceState(null, "", location.pathname.replace(/\/$/, "") || "/");
+  abre(inicial, { empurra: !window.__ROTA__ && !location.pathname.startsWith(`/${inicial.tipo}/`) });
+} else capa("entrada");

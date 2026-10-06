@@ -4,7 +4,11 @@
 
 **STATUS**: teste (só lê dados públicos do TSE; não manda mensagem a ninguém). Projeto geral, sem vínculo com campanha.
 
-**Onde roda / deploy**: Cloudflare Pages, pasta `public/`, **somente via CI** (`.github/workflows/deploy.yml`, wrangler, projeto `hora-de-votar`). Domínio `horadevotar.com`.
+**Onde roda / deploy**: Cloudflare Pages (`public/` estático + `functions/`), **somente via CI** (`.github/workflows/deploy.yml`, wrangler, projeto `hora-de-votar`). Domínio `horadevotar.com` (zona na Cloudflare; registro na Namecheap). Dev local com as funções: `npx wrangler pages dev public --port 4196` (via `portly temp`).
+
+**Rotas** (links compartilháveis, com prévia própria no WhatsApp/X): `/s/<município>/<zona>/<seção>` e `/l/<município>/<zona>-<local>` são servidas por `functions/` (`lib/pagina.js`), que injeta título, descrição e `og:image` no `index.html` via HTMLRewriter; `/og/s/...png`, `/og/l/...png` e `/og/brasil.png` geram a imagem 1200×630 na borda (`lib/imagem.js`, @cf-wasm/og = satori + resvg; fontes estáticas em `public/fonts/og/`; cache na borda). `/api/onde` devolve só a UF aproximada (cf.regionCode) para a busca começar no estado certo. Links antigos com `#/` são convertidos no navegador. `public/js/dados.js`, `modelo.js` e `curva.js` são puros e compartilhados entre navegador e funções.
+
+**Front** (tema claro único): `app.js` (orquestra, rotas, compartilhar, stories), `grafico.js` (um gráfico que se transforma entre Brasil/local/seção, entrada em onda, régua arrastável com teclado, vibração no melhor horário), `busca.js` (barra única: cidade, local, bairro, endereço, zona/seção, "perto de mim" por geolocalização, recentes no localStorage), `som.js` (bipe de fim de voto da urna, sintetizado, desligável).
 
 **Dados**
 - Fonte: log de cada urna (`log.jez`, zip com `logd.dat`), listado no `aux.json` de cada seção em `resultados.tse.jus.br/oficial/ele2026/arquivo-urna/3220/`. Cada eleitor gera "Identificador do eleitor digitado pelo mesário" → … → "O voto do eleitor foi computado". O total de "computado" bate com o comparecimento do BU (78/78 seções conferidas em MA).
@@ -12,7 +16,7 @@
 - Urna trocada no meio do dia: o log da urna antiga vem num `.jez` dentro do `.jez`. A coleta abre os aninhados; para corrigir uma coleta antiga sem refazer tudo: `python3 scripts/coleta_log.py --uf <uf> --refaz` (grava `.cache/<uf>/log.refeitas.jsonl`, que o build usa por cima).
 - Conferência: `cd scripts && python3 confere_bu.py` compara o total de eleitores de cada log com o comparecimento do BU (resumo do quem-vota-em-quem). Esperado: ~100% iguais.
 - Build: `python3 scripts/build_data.py` lê os artefatos e o cadastro de locais e gera `public/data/` (versionado: é o que vai ao ar). OG: `node scripts/og.mjs` (servidor de pé).
-- Formato: `municipios.json` = `[[UF, código, nome, hora local de abertura, seções]]`; `m/<código>.json` = município com `locais` (`id` = `<zona>-<local>`, `n` nome, `e` endereço, `b` bairro, `a` nome antigo, `z`, `s` seções, `v`/`q` por faixa, `ns` urnas, `t1`/`t2`/`me`); `z/<código>-<zona>.json` = `{seção: {v, q, n, t1, t2, me} | {p: seção principal}}`; `br.json` = Brasil e `uf`, com `perfil` de chegada.
+- Formato: `municipios.json` = `[[UF, código, nome, hora local de abertura, seções, [lat, lon] do centro]]`; `idx/<UF>.json` = `[[município, id do local, nome, bairro, endereço, nome antigo]]` (busca sem cidade); locais têm `g` = [lat, lon]; `m/<código>.json` = município com `locais` (`id` = `<zona>-<local>`, `n` nome, `e` endereço, `b` bairro, `a` nome antigo, `z`, `s` seções, `v`/`q` por faixa, `ns` urnas, `t1`/`t2`/`me`); `z/<código>-<zona>.json` = `{seção: {v, q, n, t1, t2, me} | {p: seção principal}}`; `br.json` = Brasil e `uf`, com `perfil` de chegada.
 
 **Modelo (não negociável: é o que o site afirma)**
 - Faixas de 15 min desde a abertura oficial. `v` = eleitores que começaram a votar; `q` = desses, quantos pegaram fila (intervalo desde o eleitor anterior até 2× o tempo típico de mesa da seção, de 30 a 75 s). Curva do 1º turno = % com fila, somando faixas vizinhas (`chanceFila` em `public/js/modelo.js`).

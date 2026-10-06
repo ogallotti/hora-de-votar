@@ -28,10 +28,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Publicar public/ no Cloudflare Pages
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      # functions/ (prévia de links e imagem por seção) usa @cf-wasm/og; o wrangler empacota junto
+      - run: pnpm install --frozen-lockfile
+      - name: Publicar public/ e functions/ no Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: npm # o runner não tem pnpm; o wrangler instala via npm
+          packageManager: pnpm
           command: pages deploy public --project-name=hora-de-votar --branch=main
