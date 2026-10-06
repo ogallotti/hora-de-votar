@@ -5,17 +5,16 @@ Uso: python3 scripts/build_data.py [--ufs ma,ac]
 Entradas: .cache/artefatos/log-<uf>-<k>de<n>/log.p<k>.jsonl.gz (coleta nacional) ou .cache/<uf>/log*.jsonl (local)
           .cache/locais/eleitorado_local_votacao_2026_<UF>.csv (baixado se faltar)
 Saídas (formato no README):
-    public/data/municipios.json         [[uf, código, nome, abertura], ...] para a busca
+    public/data/municipios.json         [[uf, código, nome, abertura, seções], ...] para a busca
     public/data/m/<código>.json         locais do município, curva de cada local e do município
     public/data/z/<código>-<zona>.json  curva de cada seção da zona
     public/data/br.json                 curva do Brasil e de cada UF
 
 Métrica: faixas de 15 min contadas a partir da abertura oficial (8h de Brasília = hora local da urna).
   v[i] = eleitores que começaram a votar na faixa i;
-  o[i] = % do tempo da faixa em que a seção estava atendendo alguém (ocupação). Um eleitor ocupa a urna do
-         identificador digitado até o voto computado, mais 30 s de conferência de documento na mesa; se o próximo
-         chega em até 60 s depois do anterior sair, o intervalo inteiro conta como ocupado (sinal de fila).
-Ocupação alta e contínua = fila. É a curva do gráfico e a base da recomendação de horário.
+  q[i] = desses, quantos pegaram fila: o intervalo desde o eleitor anterior ficou dentro do tempo de mesa típico
+         da seção (até 2×, de 30 a 75 s). Intervalo bem maior = a urna ficou esperando alguém chegar.
+  Os arquivos de local, município e UF somam v e q de todas as urnas (ns = número de urnas com log).
 """
 import argparse
 import csv
@@ -40,8 +39,6 @@ UFS = "ac al am ap ba ce df es go ma mg ms mt pa pb pe pi pr rj rn ro rr rs sc s
 FAIXA = 900          # 15 min
 FAIXAS = 36          # 9 h de votação
 EXTRA = 12           # até 3 h depois do horário oficial (fila no encerramento)
-CONFERENCIA = 30     # s de mesa antes do identificador digitado
-FILA = 60            # s: próximo eleitor em até 60 s = estava esperando
 # UFs com 2º turno para governador em 2026 (resultado oficial do 1º turno); nas demais o 2º turno é só presidente
 GOV2 = {"ac", "am", "df", "es", "rj", "rn", "to"}
 
@@ -106,31 +103,42 @@ def registros(uf):
             yield from map(json.loads, f)
 
 
-def curva(r, h0):
-    """Faixas de 15 min (v = eleitores, o = segundos ocupados) a partir de h0 (hora local da abertura oficial)."""
-    n = FAIXAS + EXTRA
-    v, occ = [0] * n, [0.0] * n
-    t0 = h0 * 3600
-    fim, ant = 0, None
+def intervalos(r):
+    """[(início, fim, intervalo desde o eleitor anterior ou None)] de cada eleitor, em segundos desde 0h."""
+    out, fim, ant = [], 0, None
     for df, d in zip(r["f"], r["d"]):
         fim += df
         ini = fim - d if d >= 0 else fim - 60
-        a = ant if ant is not None and ini - ant <= FILA else ini - CONFERENCIA
-        a = max(a, ant if ant is not None else a)
+        out.append((ini, fim, ini - ant if ant is not None else None))
+        ant = fim
+    return out
+
+
+def mesa(ivs):
+    """Tempo típico de mesa quando há fila: mediana dos intervalos curtos (até 90 s) entre um eleitor sair e o
+    próximo ser identificado. Com poucos intervalos curtos (seção sem fila), usa 20 s."""
+    curtos = sorted(g for _, _, g in ivs if g is not None and 0 <= g <= 90)
+    return statistics.median(curtos) if len(curtos) >= 10 else 20
+
+
+def curva(r, h0):
+    """Faixas de 15 min a partir de h0 (hora local da abertura oficial):
+    v = eleitores que começaram a votar na faixa; q = desses, quantos pegaram fila.
+    Pegou fila: o intervalo desde o eleitor anterior ficou dentro do tempo de mesa (até 2× o típico, de 30 a 75 s),
+    ou seja, o próximo foi chamado logo; intervalo bem maior = a urna ficou esperando alguém chegar.
+    O primeiro eleitor do dia pegou fila se começou nos 2 primeiros minutos da abertura."""
+    n = FAIXAS + EXTRA
+    v, q = [0] * n, [0] * n
+    t0 = h0 * 3600
+    ivs = intervalos(r)
+    lim = min(75, max(30, 2 * mesa(ivs)))
+    for ini, _, g in ivs:
         k = int((ini - t0) // FAIXA)
         if 0 <= k < n:
             v[k] += 1
-        # ocupação: [a, fim] distribuído pelas faixas
-        x = max(a, t0)
-        while x < fim:
-            k = int((x - t0) // FAIXA)
-            if k >= n:
-                break
-            y = min(fim, t0 + (k + 1) * FAIXA)
-            occ[k] += y - x
-            x = y
-        ant = fim
-    return v, occ
+            if (g is not None and g <= lim) or (g is None and ini - (r.get("ab") or t0) <= 120):
+                q[k] += 1
+    return v, q, lim
 
 
 def mediana(xs):
@@ -147,13 +155,7 @@ def tempos(r, gov2):
     t1 = mediana([d for d in r["d"] if d > 0])
     h, pr, p1 = mediana(r.get("h", [])), mediana(r.get("pr", [])), mediana(r.get("p1", []))
     t2 = h + p1 + ((pr or 0) if gov2 else 0) if h is not None and p1 is not None else None
-    fim, ant, gaps = 0, None, []
-    for df, d in zip(r["f"], r["d"]):
-        fim += df
-        if ant is not None and d >= 0 and 0 <= fim - d - ant <= FILA:
-            gaps.append(fim - d - ant)
-        ant = fim
-    me = mediana(gaps)
+    me = mesa(intervalos(r))
     return {"t1": round(t1) if t1 else None, "t2": round(t2) if t2 else None, "me": round(me) if me is not None else None}
 
 
@@ -168,21 +170,18 @@ def abertura(rs):
     return statistics.mode(hs) if hs else 8
 
 
-def corta(v):
-    """Tira zeros do fim, sem cortar as 36 faixas oficiais."""
-    n = len(v)
-    while n > FAIXAS and not v[n - 1]:
-        n -= 1
+def corta(v, n=None):
+    """Tira zeros do fim, sem cortar as 36 faixas oficiais (ou corta no tamanho n, para q acompanhar v)."""
+    if n is None:
+        n = len(v)
+        while n > FAIXAS and not v[n - 1]:
+            n -= 1
     return v[:n]
-
-
-def pct(occ, n=1):
-    return [min(100, round(100 * x / (FAIXA * n))) for x in occ]
 
 
 def soma(curvas):
     v = [0] * (FAIXAS + EXTRA)
-    o = [0.0] * (FAIXAS + EXTRA)
+    o = [0] * (FAIXAS + EXTRA)
     for cv, co in curvas:
         for i in range(len(v)):
             v[i] += cv[i]
@@ -201,7 +200,7 @@ def main():
     a = ap.parse_args()
     ufs = a.ufs.split(",") if a.ufs else UFS
     muns_out, br_uf = [], {}
-    br_v, br_o, br_n = [0] * (FAIXAS + EXTRA), [0.0] * (FAIXAS + EXTRA), 0
+    br_v, br_o, br_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
     for uf in ufs:
         rs = list(registros(uf))
         if not rs:
@@ -239,12 +238,12 @@ def main():
             if not r:
                 sem_log += 1
                 continue
-            v, occ = curva(r, h0)
-            loc["_c"].append((v, occ))
+            v, q, _ = curva(r, h0)
+            loc["_c"].append((v, q))
             t = tempos(r, uf in GOV2)
             loc["_t"] = loc.get("_t", []) + [t]
-            secoes[(m, z)][s] = {"v": corta(v), "o": corta(pct(occ)), "n": len(r["f"]), **t}
-        uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0.0] * (FAIXAS + EXTRA), 0
+            secoes[(m, z)][s] = {"v": corta(v), "q": corta(q, len(v)), "n": len(r["f"]), **t}
+        uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
         for m, ls in locais.items():
             mv, mo = soma(c for l in ls.values() for c in l["_c"])
             nm = sum(len(l["_c"]) for l in ls.values())
@@ -255,21 +254,21 @@ def main():
                 l["s"] = sorted(set(l["s"]))
                 if c:
                     lv, lo = soma(c)
-                    l["v"], l["o"], l["ns"] = corta(lv), corta(pct(lo, len(c))), len(c)
+                    l["v"], l["q"], l["ns"] = corta(lv), corta(lo, len(corta(lv))), len(c)
                 l["id"] = lid
                 out_locais.append(l)
             mt = junta_tempos([{k: l.get(k) for k in ("t1", "t2", "me")} for l in out_locais if l.get("t1")])
-            grava(OUT / "m" / f"{m}.json", {"uf": uf, "cd": m, "nome": nomes[m], "h0": h0_mun.get(m, 8), **mt,
-                                           "v": corta(mv), "o": corta(pct(mo, max(nm, 1))), "ns": nm,
+            grava(OUT / "m" / f"{m}.json", {"uf": uf.upper(), "cd": m, "nome": nomes[m], "h0": h0_mun.get(m, 8), **mt,
+                                           "v": corta(mv), "q": corta(mo, len(corta(mv))), "ns": nm,
                                            "locais": out_locais})
-            muns_out.append([uf.upper(), m, nomes[m], h0_mun.get(m, 8)])
+            muns_out.append([uf.upper(), m, nomes[m], h0_mun.get(m, 8), sum(len(l["s"]) for l in out_locais)])
             for i in range(FAIXAS + EXTRA):
                 uf_v[i] += mv[i]
                 uf_o[i] += mo[i]
             uf_n += nm
         for (m, z), ss in secoes.items():
             grava(OUT / "z" / f"{m}-{z}.json", {str(s): d for s, d in sorted(ss.items())})
-        br_uf[uf.upper()] = {"v": corta(uf_v), "o": corta(pct(uf_o, max(uf_n, 1))), "n": uf_n,
+        br_uf[uf.upper()] = {"v": corta(uf_v), "q": corta(uf_o, len(corta(uf_v))), "ns": uf_n,
                              "h0": statistics.mode(h0_mun.values()) if h0_mun else 8}
         if br_uf[uf.upper()]["h0"] == 8:  # Brasil no horário de Brasília: só soma quem abre às 8h locais
             for i in range(FAIXAS + EXTRA):
@@ -277,7 +276,7 @@ def main():
                 br_o[i] += uf_o[i]
             br_n += uf_n
         log(f"{uf}: {len(por_sec)} seções com log, {sem_log} sem log, {len(locais)} municípios")
-    grava(OUT / "br.json", {"v": corta(br_v), "o": corta(pct(br_o, max(br_n, 1))), "n": br_n, "uf": br_uf})
+    grava(OUT / "br.json", {"v": corta(br_v), "q": corta(br_o, len(corta(br_v))), "ns": br_n, "uf": br_uf})
     # municipios.json acumula entre execuções parciais (--ufs)
     idx = OUT / "municipios.json"
     antigos = [x for x in json.loads(idx.read_text())] if idx.exists() else []

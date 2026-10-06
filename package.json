@@ -1,0 +1,16 @@
+{
+  "name": "hora-de-votar",
+  "private": true,
+  "type": "module",
+  "description": "Qual a melhor hora para votar na sua seção? Movimento real das urnas no 1º turno de 2026. Site estático, zero build.",
+  "scripts": {
+    "coleta": "python3 scripts/coleta_log.py",
+    "build:data": "python3 scripts/build_data.py",
+    "serve": "python3 -m http.server 4195 --directory public --bind 127.0.0.1",
+    "test": "node --test tests/*.test.mjs",
+    "smoke": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}
