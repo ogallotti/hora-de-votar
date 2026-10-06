@@ -15,6 +15,8 @@ async function busca(q, foto) {
   if (foto) await p.screenshot({ path: `tests/shots/${foto}.png` });
 }
 await busca("102 sul brasília", "busca-1");
+await busca("410 undb");
+await busca("seção 410 undb");
 await busca("pinheiros são paulo");
 await busca("recife zona 1 seção 40");
 await busca("recife zona 1 seção 20");

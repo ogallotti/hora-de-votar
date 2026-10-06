@@ -24,6 +24,9 @@ export function interpreta(q) {
   return { toks, zona, secao, uf };
 }
 
+const ehNumero = (t) => /^\d{1,4}$/.test(t);
+const itemSecao = (mun, l, s) => ({ tipo: "secao", cd: mun.cd, z: l.z, s, t: `Zona ${l.z}, seção ${s}`, d: `${l.n} · ${mun.nome}, ${mun.uf}`, ic: "secao", toks: [] });
+
 // cada palavra da busca precisa começar alguma palavra do texto
 function casa(toks, alvoPalavras) {
   return toks.every((t) => alvoPalavras.some((w) => w.startsWith(t)));
@@ -123,8 +126,10 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
       const sAlvo = secao ?? numeroSo;
       if (sAlvo != null || zona != null) {
         const cands = [];
+        const nomeSec = toks.filter((t) => !ehNumero(t));
         for (const l of d.locais) {
           if (zona != null && l.z !== zona) continue;
+          if (secao != null && nomeSec.length && !casa(nomeSec, l._p)) continue; // "seção 410 undb": só no local que casa
           const ss = sAlvo != null ? l.s.filter((s) => s === sAlvo) : [];
           for (const s of ss) cands.push({ tipo: "secao", cd: mun.cd, z: l.z, s, t: `Zona ${l.z}, seção ${s}`, d: `${l.n} · ${mun.nome}, ${mun.uf}`, ic: "secao", toks: [] });
         }
@@ -137,9 +142,25 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
         }
       }
       const texto = numeroSo != null ? [] : toks;
+      // "410 undb": o número pode ser a seção, e o resto, o nome do local
+      const nums = texto.filter(ehNumero).map(Number), pal = texto.filter((t) => !ehNumero(t));
+      const peloNome = (l) => nums.length && pal.length && casa(pal, l._p);
+      if (nums.length && pal.length) {
+        // número que está no nome do local é nome ("102 sul"); o que sobra é seção ("escola classe 102 sul 4")
+        const algumTudo = locais.some((l) => (zona == null || l.z === zona) && casa(texto, l._p));
+        const cands = [];
+        for (const l of locais) {
+          if ((zona != null && l.z !== zona) || !peloNome(l)) continue;
+          const noNome = nums.filter((n) => l._p.includes(String(n)));
+          if (algumTudo && !noNome.length) continue;
+          for (const n of nums) if (!noNome.includes(n) && l.s.includes(n)) cands.push({ it: itemSecao(mun, l, n), nota: noNome.length });
+        }
+        cands.sort((a, b) => b.nota - a.nota);
+        if (cands.length) grupos.unshift({ rot: "Seções", itens: cands.slice(0, MAX.secao).map((c) => c.it) });
+      }
       if (texto.length || (zona != null && sAlvo == null)) {
         const achados = locais
-          .filter((l) => (zona == null || l.z === zona) && casa(texto, l._p))
+          .filter((l) => (zona == null || l.z === zona) && (casa(texto, l._p) || peloNome(l)))
           .map((l) => ({ l, nota: texto.reduce((s, t) => s + (l._n.some((w) => w.startsWith(t)) ? 3 : 1), 0) + (l._n[0]?.startsWith(texto[0] || "~") ? 1 : 0) + bonusFrase(l._p) }))
           .sort((a, b) => b.nota - a.nota || a.l.n.localeCompare(b.l.n))
           .slice(0, MAX.local);
@@ -161,16 +182,34 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
         const bs = [...bairros].sort((a, b) => b[1] - a[1]).slice(0, 6);
         if (bs.length > 1) grupos.push({ rot: "Bairros com mais locais", itens: bs.map(([b, n]) => ({ tipo: "bairro", mun, bairro: b, t: b, d: `${mun.nome}, ${mun.uf}`, x: `${n} locais`, ic: "bairro", toks: [] })) });
       }
-    } else if (toks.join("").length >= 3 && !cidadeExata) {
+    } else if ((toks.join("").length >= 3 || (secao != null && toks.length)) && !cidadeExata) {
       // sem cidade: locais do estado (UF digitada ou a da conexão)
       const ufs = [...new Set([uf, ufGeo()].filter(Boolean))];
+      const nums = toks.filter(ehNumero).map(Number), pal = toks.filter((t) => !ehNumero(t));
+      if (secao != null && zona == null) nums.push(secao); // "seção 410 undb"
+      const comNumero = nums.length && pal.join("").length >= 2;
       const achados = [];
       for (const u of ufs) {
         for (const r of await indiceUf(u).catch(() => [])) {
-          if (casa(toks, r._p)) achados.push({ r, nota: toks.reduce((s, t) => s + (r._n.some((w) => w.startsWith(t)) ? 3 : 1), 0) + bonusFrase(r._p) + (r.mun?.uf === ufGeo() ? 0.5 : 0) + Math.log10((r.mun?.ns || 1)) / 10 });
+          const tudo = casa(toks, r._p), nome = comNumero && casa(pal, r._p);
+          if (tudo || nome) achados.push({ r, nome: !tudo, nota: (tudo ? toks : pal).reduce((s, t) => s + (r._n.some((w) => w.startsWith(t)) ? 3 : 1), 0) + bonusFrase(r._p) + (r.mun?.uf === ufGeo() ? 0.5 : 0) + Math.log10((r.mun?.ns || 1)) / 10 });
         }
       }
       achados.sort((a, b) => b.nota - a.nota);
+      // "410 undb" sem cidade: confere a seção nos locais que casaram pelo nome (abre o arquivo da cidade deles)
+      if (comNumero && achados.length) {
+        const algumTudo = achados.some((a) => !a.nome) && secao == null;
+        const cands = [];
+        for (const { r } of achados.slice(0, 8)) {
+          const noNome = nums.filter((n) => r._p.includes(String(n)));
+          if (algumTudo && !noNome.length) continue;
+          const d = await locaisDaCidade(r.cd).catch(() => null);
+          const l = d?.locais.find((x) => x.id === r.id);
+          if (l && r.mun) for (const n of nums) if (!noNome.includes(n) && l.s.includes(n)) cands.push({ it: itemSecao(r.mun, l, n), nota: noNome.length });
+        }
+        cands.sort((a, b) => b.nota - a.nota);
+        if (cands.length) grupos.unshift({ rot: "Seções", itens: cands.slice(0, MAX.secao).map((c) => c.it) });
+      }
       if (!achados.length && ufs.length) aviso = `Não achamos em ${ufs.join(", ")}. Inclua a cidade (ex.: <b>${esc(frase)} são paulo</b>).`;
       if (achados.length) grupos.push({ rot: ufs.length ? `Locais de votação · ${ufs.join(", ")}` : "Locais de votação", itens: achados.slice(0, MAX.local).map(({ r }) => ({ tipo: "local", cd: r.cd, lid: r.id, t: r.n, d: [r.b, r.mun ? `${r.mun.nome}, ${r.mun.uf}` : ""].filter(Boolean).join(" · "), x: "", ic: "pin", toks })) });
     }
