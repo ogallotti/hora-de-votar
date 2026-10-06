@@ -1,8 +1,7 @@
-import { analisa, hora, duracao, OFICIAIS } from "./modelo.js";
+import { analisa, hora, duracao, minutos, OFICIAIS } from "./modelo.js";
 import { Grafico, FAIXAS_GRAFICO } from "./grafico.js";
 import { resolve, resumo, caminhoDe } from "./dados.js";
 import { criaBusca } from "./busca.js";
-import { fimDaUrna, alternaSom, somLigado } from "./som.js";
 
 const $ = (s) => document.querySelector(s);
 const SEGUNDO_TURNO = new Date(2026, 9, 25);
@@ -30,38 +29,26 @@ function json(url) {
   else if (dias === 0) el.innerHTML = "<strong>Hoje é dia de votar</strong>";
   else el.textContent = "Eleições 2026";
 })();
-function pintaSom() {
-  const b = $("#som"), on = somLigado();
-  b.setAttribute("aria-pressed", String(on));
-  b.setAttribute("aria-label", on ? "Som da urna ligado" : "Som da urna desligado");
-  b.querySelector("use").setAttribute("href", on ? "#i-som" : "#i-mudo");
-}
-$("#som").addEventListener("click", () => { alternaSom(); pintaSom(); if (somLigado()) fimDaUrna(); });
-pintaSom();
 
 // entrada em sequência
 ["#cabeca", "#busca", "#palco-grafico"].forEach((s, i) => { $(s).classList.add("entra"); $(s).style.setProperty("--i", i); });
 
-// ------------------------------------------------------------ leitura da régua (bonecos)
-function bonecos(alvo) {
-  alvo.innerHTML = Array.from({ length: 10 }, (_, k) => `<svg style="--k:${k}" viewBox="0 0 256 256"><use href="#i-pessoa"/></svg>`).join("");
-  return [...alvo.children];
-}
-const b1 = bonecos($("#b1")), b2 = bonecos($("#b2"));
-let h0 = 8;
-function leitura(i, cur) {
-  const o1 = Math.round(cur.o1[i] || 0), o2 = Math.round(cur.o2[i] || 0);
-  const k1 = Math.round(o1 / 10), k2 = Math.round(o2 / 10);
-  b1.forEach((e, k) => e.classList.toggle("on", k < k1));
-  b2.forEach((e, k) => e.classList.toggle("on", i < OFICIAIS && k < k2));
+// ------------------------------------------------------------ leitura da régua: espera e tempo na urna
+let h0 = 8, analise = null;
+function leitura(i) {
+  if (!analise) return;
+  const a = analise, dentro = i < OFICIAIS;
   $("#l-hora").textContent = hora(i, h0);
-  $("#l-faixa").textContent = i < OFICIAIS ? `às ${hora(i + 1, h0)}` : "após o encerramento";
-  $("#l1").innerHTML = `<b>${k1} de 10</b> esperaram`;
-  $("#l2").innerHTML = i < OFICIAIS ? `<b>${k2} de 10</b> devem esperar` : "urna fechada";
+  $("#l-faixa").textContent = dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento";
+  $("#w1").textContent = minutos(a.w1[i] || 0);
+  $("#w2").textContent = dentro ? minutos(a.w2[i] || 0) : "urna fechada";
+  $("#u1").textContent = duracao(a.t1);
+  $("#u2").textContent = duracao(a.t2 ?? (a.t1 ? a.t1 * 0.45 : null));
 }
+const porUrna = (d) => d.v.map((x) => x / (d.ns || 1));
 
 const grafico = new Grafico($("#grafico"), {
-  aoMover: (i, cur) => { leitura(i, cur); $("#arraste").classList.toggle("some", grafico.mexeu); },
+  aoMover: (i) => leitura(i),
   aoEntrarMelhor: () => { try { navigator.vibrate?.(8); } catch { /* sem vibração */ } },
 });
 $(".legenda").addEventListener("click", (e) => {
@@ -78,9 +65,9 @@ $(".legenda").addEventListener("click", (e) => {
 let br = null, primeira = true;
 async function mostraBrasil(modo) {
   br ??= await json("/data/br.json");
-  const a = analisa(br, 8, br.perfil);
+  const a = (analise = analisa(br, 8, br.perfil));
   h0 = 8;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, melhor: a.r2.melhor, segundo: a.r2.segundo }, modo);
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: porUrna(br), melhor: a.r2.melhor, segundo: a.r2.segundo }, modo);
   $("#rotulo-grafico").textContent = `Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
   return a;
 }
@@ -89,7 +76,7 @@ function capa(modo = "transforma") {
   document.title = "Hora de votar · a melhor hora para votar no 2º turno";
   $("#onde").hidden = true;
   $("#titulo").innerHTML = 'Qual a melhor hora para votar no <span class="nw">2º turno?</span>';
-  $("#sub").textContent = "Lemos o log de cada urna do 1º turno, eleitor por eleitor. Busque a sua.";
+  $("#sub").hidden = true;
   $("#dica-busca").hidden = false;
   $("#secoes").hidden = true;
   $("#extras").hidden = true;
@@ -111,7 +98,7 @@ function guardaRecente(ctx) {
 
 let atual = null;
 async function abre(rota, { gesto = false, empurra = true } = {}) {
-  if (gesto) { fimDaUrna(); const f = $("#fim"); f.classList.remove("mostra"); void f.offsetWidth; f.classList.add("mostra"); }
+  if (gesto) { const f = $("#fim"); f.classList.remove("mostra"); void f.offsetWidth; f.classList.add("mostra"); }
   let ctx;
   try { ctx = await resolve(json, rota); } catch {
     $("#sub").innerHTML = "Não encontramos essa seção. Confira a zona e a seção no título de eleitor ou no app e-Título.";
@@ -129,6 +116,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
 
   const { a } = r;
   h0 = a.h0;
+  analise = a;
   const onde = $("#onde");
   onde.hidden = false;
   onde.innerHTML = r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join('<span class="sep">/</span>');
@@ -142,6 +130,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   if (a.h0 !== 8) sub += ` Horário local: a votação vai das ${a.h0}h às ${a.h0 + 9}h.`;
   if (ctx.nota) sub += `<span class="nota">${esc(ctx.nota)}</span>`;
   $("#sub").innerHTML = sub;
+  $("#sub").hidden = false;
   for (const s of ["#onde", "#titulo", "#sub"]) { const e = $(s); e.classList.remove("troca"); void e.offsetWidth; e.classList.add("troca"); }
   $("#dica-busca").hidden = true;
 
@@ -156,15 +145,17 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   } else sec.hidden = true;
 
   $("#rotulo-grafico").textContent = ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, melhor: a.r2.melhor, segundo: a.r2.segundo }, primeira ? "entrada" : "transforma");
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: porUrna(ctx.d), melhor: a.r2.melhor, segundo: a.r2.segundo }, primeira ? "entrada" : "transforma");
   grafico.passeia(a.r2.melhor + 2, primeira ? 1600 : 900);
   primeira = false;
 
   // números
+  const media = (w, ini) => w.slice(ini, ini + 4).reduce((x, y) => x + y, 0) / 4;
+  const pico1 = Math.max(...a.w1.slice(0, OFICIAIS));
   const nums = [];
   if (a.t1 && a.t2) nums.push(["Tempo de cada eleitor na urna", `<span>${duracao(a.t1)}</span><span class="seta">→</span><span class="bom">${duracao(a.t2)}</span>`]);
-  if (a.fator) nums.push(["Quanto mais rápido a fila deve andar", `<span data-conta="${a.fator}" data-casas="1">${fmt(a.fator)}</span><span>×</span>`]);
-  nums.push(ctx.secao ? ["Eleitores que votaram nesta urna no 1º turno", `<span data-conta="${ctx.d.n}" data-casas="0">${ctx.d.n}</span>`] : ["Seções (urnas) neste local", `<span>${ctx.d.ns}</span>`]);
+  nums.push([`Espera estimada no pico do 1º turno`, `<span>${minutos(pico1)}</span>`]);
+  nums.push([`Espera estimada entre ${r.ini} e ${r.fim} no 2º turno`, `<span class="bom">${minutos(media(a.w2, a.r2.melhor))}</span>`]);
   $("#numeros").innerHTML = nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
   $("#extras").hidden = false;
   contaNumeros();
@@ -241,24 +232,26 @@ $("#baixar").addEventListener("click", async () => {
   x.fillStyle = "#0e7a45"; x.fillText(faixa, 84, 680);
   x.fillStyle = "#474e4a"; x.font = "500 40px Geist, sans-serif";
   r.lugar.forEach((t, i) => { let s = t; while (x.measureText(s).width > W - 180 && s.length > 4) s = s.slice(0, -2); x.fillText(s === t ? s : `${s.trim()}…`, 90, 790 + i * 56); });
-  const gx = 90, gy = 1060, gw = W - 180, gh = 460, N = OFICIAIS;
-  const px = (i) => gx + ((i + 0.5) / N) * gw, py = (v) => gy + (1 - v / 100) * gh;
-  x.strokeStyle = "#ecedec"; x.lineWidth = 2;
-  for (const v of [0, 50, 100]) { x.beginPath(); x.moveTo(gx, py(v)); x.lineTo(gx + gw, py(v)); x.stroke(); }
-  x.beginPath(); x.moveTo(px(0), py(0));
-  for (let i = 0; i < N; i++) x.lineTo(px(i), py(a.o1[i] || 0));
-  x.lineTo(px(N - 1), py(0)); x.closePath(); x.fillStyle = "#eceeec"; x.fill();
+  const gx = 90, gy = 1060, gw = W - 180, gh = 460, N = OFICIAIS, L = 20;
+  const px = (i) => gx + ((i + 0.5) / N) * gw, py = (j) => gy + gh - (j + 0.5) * (gh / L);
   const b0 = gx + (a.r2.melhor / N) * gw, b1 = gx + ((a.r2.melhor + 4) / N) * gw;
-  x.fillStyle = "rgba(14,122,69,.1)"; x.beginPath(); x.roundRect(b0, gy - 12, b1 - b0, gh + 12, 18); x.fill();
-  x.beginPath();
-  for (let i = 0; i < N; i++) (i ? x.lineTo : x.moveTo).call(x, px(i), py(a.o2[i] || 0));
-  x.strokeStyle = "#0e7a45"; x.lineWidth = 8; x.lineJoin = "round"; x.lineCap = "round"; x.stroke();
+  x.fillStyle = "rgba(14,122,69,.08)"; x.beginPath(); x.roundRect(b0, gy - 14, b1 - b0, gh + 22, 18); x.fill();
+  const rr = Math.min(gw / N, gh / L) * 0.3;
+  for (let i = 0; i < N; i++) {
+    const k1 = Math.round(a.o1[i] / 5), k2 = Math.round((a.o2[i] || 0) / 5);
+    for (let j = 0; j < L; j++) {
+      const verde = j < k2, cinza = j < k1;
+      if (verde) { x.fillStyle = "rgba(63,210,131,.25)"; x.beginPath(); x.arc(px(i), py(j), rr * 2, 0, 7); x.fill(); }
+      x.fillStyle = verde ? "#0e7a45" : cinza ? "#a7aeaa" : "#eceeec";
+      x.beginPath(); x.arc(px(i), py(j), verde || cinza ? rr : rr * 0.62, 0, 7); x.fill();
+    }
+  }
   x.fillStyle = "#6b726e"; x.font = "500 32px Geist, sans-serif";
   for (let i = 0; i <= N; i += 8) { x.textAlign = i ? "center" : "left"; x.fillText(hora(i, a.h0), gx + (i / N) * gw, gy + gh + 54); }
   x.textAlign = "left";
-  x.fillStyle = "#eceeec"; x.beginPath(); x.roundRect(90, 1612, 40, 24, 6); x.fill();
+  x.fillStyle = "#a7aeaa"; x.beginPath(); x.arc(110, 1624, 12, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.font = "500 32px Geist, sans-serif"; x.fillText(`${r.dez} de 10 pegaram fila no 1º turno`, 146, 1634);
-  x.fillStyle = "#0e7a45"; x.beginPath(); x.roundRect(90, 1672, 40, 8, 4); x.fill();
+  x.fillStyle = "#0e7a45"; x.beginPath(); x.arc(110, 1676, 12, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.fillText(a.fator ? `2º turno: fila ${fmt(a.fator)}× mais rápida` : "2º turno, estimativa", 146, 1688);
   x.fillStyle = "#0a0c0b"; x.font = "600 44px Geist, sans-serif"; x.fillText("Veja o da sua seção em", 90, 1792);
   x.fillStyle = "#0e7a45"; x.font = "700 62px Geist, sans-serif"; x.fillText(SITE, 90, 1862);

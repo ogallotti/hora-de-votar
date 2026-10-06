@@ -56,8 +56,6 @@ button { -webkit-tap-highlight-color: transparent; }
 .topo-dir { display: flex; align-items: center; gap: 6px; }
 .contagem { margin: 0; font-size: 13.5px; color: var(--tinta-2); background: var(--fundo-2); border-radius: 999px; padding: 6px 12px; font-variant-numeric: tabular-nums; }
 .contagem strong { color: var(--tinta); font-weight: 600; }
-.som { width: 34px; height: 34px; border-radius: 999px; border: 0; background: none; color: var(--tinta-3); display: grid; place-items: center; cursor: pointer; transition: background .2s, color .2s; }
-.som:hover { background: var(--fundo-2); color: var(--tinta); }
 
 /* ------------------------------------------------------------ cabeça */
 .palco { max-width: 1240px; margin: 0 auto; padding: 0 20px; width: 100%; }
@@ -178,24 +176,26 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 }
 .leg:hover { border-color: var(--linha-2); }
 .leg[aria-pressed="false"] { opacity: .45; }
-.leg i { display: inline-block; width: 16px; height: 10px; border-radius: 3px; }
-.leg-1 i { background: var(--r1-fundo); box-shadow: inset 0 2px 0 var(--r1); }
-.leg-2 i { height: 3px; background: var(--verde); border-radius: 2px; }
+.leg i { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin: 0 2px; }
+.leg-1 i { background: #a7aeaa; }
+.leg-2 i { background: var(--verde); box-shadow: 0 0 0 3px rgb(63 210 131 / .22); }
 .rotulo-grafico { margin: 0; font-size: 13.5px; color: var(--tinta-3); }
 
 .grafico { position: relative; height: clamp(280px, 44vh, 480px); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .grafico:focus-visible { outline-offset: 8px; border-radius: 12px; }
-.grafico svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.grafico svg { position: relative; z-index: 1; display: block; width: 100%; height: 100%; overflow: visible; }
+.g-pontos { position: absolute; inset: 0 auto auto 0; z-index: 0; pointer-events: none; }
+.etiqueta { z-index: 2; }
 .g-grade { stroke: var(--linha); stroke-width: 1; }
 .g-base { stroke: var(--linha-2); stroke-width: 1; }
 .g-eixo { font-size: 12px; fill: var(--tinta-3); font-variant-numeric: tabular-nums; }
-.g-encerrado { fill: url(#hachura); }
+.g-encerrado { fill: rgb(10 12 11 / .025); }
 .g-encerrado-rot { font-size: 11.5px; fill: var(--tinta-3); }
 .g-r1-area { fill: url(#grad-r1); }
 .g-r1-linha { fill: none; stroke: var(--r1); stroke-width: 1.5; }
 .g-r2-area { fill: url(#grad-r2); }
 .g-r2-linha { fill: none; stroke: var(--verde); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.g-melhor { fill: var(--verde-fundo); }
+.g-melhor { fill: rgb(14 122 69 / .07); }
 .g-segundo { fill: none; stroke: var(--verde); stroke-opacity: .35; stroke-width: 1.5; stroke-dasharray: 4 5; }
 .g-pico { fill: var(--laranja); stroke: var(--fundo); stroke-width: 2.5; }
 .g-mira { stroke: var(--tinta); stroke-width: 1; stroke-opacity: .5; }
@@ -233,53 +233,27 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 }
 @media (prefers-reduced-motion: reduce) { .fim.mostra { animation: none; } }
 
-/* leitura do horário (régua) */
+/* leitura do horário (régua): espera e tempo na urna nos dois turnos */
 .leitura {
-  display: grid; grid-template-columns: auto 1fr 1fr; align-items: center; gap: 20px 36px;
-  margin-top: 18px; padding: 18px 22px; border-radius: 20px; background: var(--fundo-2);
+  display: grid; grid-template-columns: auto 1fr 1fr; align-items: center; gap: 20px 40px;
+  margin-top: 18px; padding: 20px 24px; border-radius: 20px; background: var(--fundo-2);
 }
 .leitura-hora { display: flex; flex-direction: column; min-width: 120px; }
 .leitura-hora span { font-size: 40px; font-weight: 650; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
 .leitura-hora small { font-size: 13.5px; color: var(--tinta-3); margin-top: 6px; }
-.leitura-turno { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; gap: 6px 14px; align-items: center; }
-.lt-rot { font-size: 13px; font-weight: 600; color: var(--tinta-3); grid-column: 1 / -1; }
+.leitura-turno { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 12px; padding-left: 22px; border-left: 1px solid var(--linha-2); }
+.lt-rot { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--tinta-3); }
 .lt-rot-2 { color: var(--verde-texto); }
-.lt-val { font-size: 14.5px; color: var(--tinta-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.lt-val b { color: var(--tinta); font-weight: 650; }
-.bonecos { display: flex; gap: 1px; flex-shrink: 0; }
-.bonecos svg { width: 20px; height: 26px; color: var(--linha-2); transition: color .25s, transform .35s var(--mola); transition-delay: calc(var(--k) * 22ms); }
-.bonecos-1 svg.on { color: var(--tinta-2); }
-.bonecos-2 svg.on { color: var(--verde); }
-.bonecos svg.on { transform: translateY(-2px); }
+.lt-num { font-size: 30px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.t2 .lt-num { color: var(--verde-texto); }
+.lt-sub { font-size: 14px; color: var(--tinta-3); }
+.lt-sub b { color: var(--tinta-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) {
-  .leitura { grid-template-columns: 1fr; gap: 14px; padding: 16px 18px; }
-  .leitura-hora { flex-direction: row; align-items: baseline; gap: 10px; }
+  .leitura { grid-template-columns: 1fr 1fr; gap: 14px 16px; padding: 16px 18px; }
+  .leitura-hora { grid-column: 1 / -1; flex-direction: row; align-items: baseline; gap: 10px; }
   .leitura-hora span { font-size: 32px; }
-  .leitura-turno { grid-template-columns: 1fr; }
-  .bonecos svg { width: 15px; height: 21px; }
-  .lt-val { white-space: normal; }
-}
-
-/* celular, no resultado: o gráfico logo depois da manchete; a busca e as seções depois da leitura */
-@media (max-width: 760px) {
-  body.resultado .palco { display: flex; flex-direction: column; }
-  body.resultado .cabeca { order: 0; padding-bottom: 8px; }
-  body.resultado .palco-grafico { order: 1; margin-top: 18px; }
-  body.resultado .secoes { order: 2; }
-  body.resultado .extras { order: 3; }
-  body.resultado .busca { order: 4; width: 100%; margin-top: 36px; }
-  .secoes { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; width: 100%; min-width: 0; }
-  body.resultado .palco > * { max-width: 100%; min-width: 0; }
-  .secoes-rot { text-align: left; }
-  .chips { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px 2px 6px; margin: 0 -20px; padding-inline: 20px; scrollbar-width: none; }
-  .chips::-webkit-scrollbar { display: none; }
-  .chip { flex-shrink: 0; scroll-snap-align: start; }
-  .contexto { max-width: 38%; }
-  .tecla { height: 44px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; }
-  .tecla:disabled { display: none; }
-  .barra { padding-right: 6px; }
-  .contexto:not([hidden]) ~ .perto { display: none; }
-  .compartilha .btn-principal { flex: 1 1 auto; }
+  .leitura-turno { grid-template-columns: 1fr; padding-left: 0; border-left: 0; }
+  .lt-num { font-size: 26px; }
 }
 .arraste { margin: 10px 0 0; text-align: center; font-size: 13px; color: var(--tinta-3); transition: opacity .4s; }
 .arraste.some { opacity: 0; }
@@ -322,11 +296,17 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .tabela tbody tr:nth-child(even) { background: var(--fundo-2); }
 
 /* ------------------------------------------------------------ método e rodapé */
-.metodo { max-width: 1240px; width: 100%; margin: 96px auto 0; padding: 0 20px; }
-.metodo h2 { margin: 0 0 24px; font-size: 26px; font-weight: 640; letter-spacing: -.035em; }
-.metodo-grade { display: grid; gap: 14px; grid-template-columns: repeat(3, 1fr); }
-.metodo-grade p { margin: 0; padding: 22px; border-radius: 20px; background: var(--fundo-2); color: var(--tinta-2); font-size: 15px; }
-.metodo-grade strong { display: block; color: var(--tinta); font-weight: 620; font-size: 16px; margin-bottom: 6px; letter-spacing: -.01em; }
-@media (max-width: 860px) { .metodo-grade { grid-template-columns: 1fr; } }
+.metodo { width: 100%; margin: 96px auto 0; padding: 0 20px; text-align: center; }
+.metodo h2 { margin: 0 0 14px; font-size: 26px; font-weight: 640; letter-spacing: -.035em; }
+.metodo { max-width: 760px; }
+.metodo p { margin: 0; color: var(--tinta-2); font-size: 16px; line-height: 1.65; }
 .rodape { max-width: 1240px; width: 100%; margin: 0 auto; padding: 32px 20px 44px; font-size: 13px; color: var(--tinta-3); }
 .rodape p { margin: 0; max-width: 72ch; }
+
+/* celular: a tecla CONFIRMA só aparece quando há o que confirmar; com cidade escolhida, sai o "perto de mim" */
+@media (max-width: 760px) {
+  .tecla:disabled { display: none; }
+  .barra { padding-right: 6px; }
+  .contexto:not([hidden]) ~ .perto { display: none; }
+  .tecla { height: 44px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; }
+}

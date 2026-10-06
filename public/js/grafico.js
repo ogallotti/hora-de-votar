@@ -1,11 +1,14 @@
-// Gráfico do dia na urna: 1º turno (área, medido) × 2º turno (linha, estimativa), em faixas de 15 min.
-// Um só gráfico na página: os dados mudam (Brasil → local → seção) e a curva se transforma.
+// Gráfico do dia na urna, em pontos: cada coluna é uma faixa de 15 min e cada ponto vale 1 em cada 20 eleitores.
+// Cinza = esperou na fila no 1º turno (medido); verde = deve esperar no 2º (estimativa).
+// Os pontos acendem em onda na entrada e piscam no ritmo em que as pessoas votaram naquela faixa.
+// Um só gráfico na página: os dados mudam (Brasil → local → seção) e os pontos se rearrumam.
 // Régua: arraste, toque ou setas do teclado; avisa quem está ouvindo (aoMover) a cada faixa.
 import { hora, OFICIAIS } from "./modelo.js";
-import { caminho } from "./curva.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 4; // até 1 h depois do encerramento (quem ainda estava na fila)
+const LINHAS = 20;      // 20 pontos por coluna: cada um = 5%
+const COR = { vazio: "#eceeec", r1: "#a7aeaa", r1Forte: "#6f7772", verde: "#0e7a45", brilho: "#3fd283" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const easeOut = (t) => 1 - (1 - t) ** 3;
@@ -18,18 +21,35 @@ function el(tag, attrs = {}, pai) {
 }
 const ajusta = (xs) => Array.from({ length: N }, (_, i) => xs?.[i] ?? 0);
 
+function sprite(raio, cor, halo, dpr) {
+  const t = Math.ceil((raio + halo) * 2 * dpr), c = document.createElement("canvas");
+  c.width = c.height = t;
+  const x = c.getContext("2d"), m = t / 2;
+  if (halo) {
+    const g = x.createRadialGradient(m, m, raio * dpr * 0.6, m, m, m);
+    g.addColorStop(0, `${cor}40`); g.addColorStop(1, `${cor}00`);
+    x.fillStyle = g; x.fillRect(0, 0, t, t);
+  }
+  x.fillStyle = cor; x.beginPath(); x.arc(m, m, raio * dpr, 0, Math.PI * 2); x.fill();
+  return c;
+}
+
 export class Grafico {
   constructor(alvo, { aoMover, aoEntrarMelhor } = {}) {
     this.alvo = alvo;
     this.aoMover = aoMover;
     this.aoEntrarMelhor = aoEntrarMelhor;
     this.h0 = 8;
-    this.cur = { o1: ajusta(), o2: ajusta(), melhor: 0, segundo: null };
-    this.alvoDados = null;
+    this.cur = { o1: ajusta(), o2: ajusta(), v: ajusta(), melhor: 0, segundo: null };
     this.i = null;
     this.mexeu = false;
+    this.mostra = { r1: true, r2: true };
+    this.piscas = [];
+    this.visivel = true;
     this.monta();
-    new ResizeObserver(() => this.desenha()).observe(alvo);
+    new ResizeObserver(() => { this.W = null; this.desenha(); }).observe(alvo);
+    new IntersectionObserver(([e]) => { this.visivel = e.isIntersecting; this.liga(); }).observe(alvo);
+    document.addEventListener("visibilitychange", () => this.liga());
   }
 
   monta() {
@@ -40,32 +60,20 @@ export class Grafico {
     a.setAttribute("aria-valuemin", "0");
     a.setAttribute("aria-valuemax", String(N - 1));
     a.setAttribute("aria-label", "Horário do dia");
+    this.cv = document.createElement("canvas");
+    this.cv.className = "g-pontos";
+    a.appendChild(this.cv);
+    this.ctx = this.cv.getContext("2d");
     const svg = (this.svg = el("svg", { "aria-hidden": "true" }, a));
-    const defs = el("defs", {}, svg);
-    const g1 = el("linearGradient", { id: "grad-r1", x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    el("stop", { offset: 0, "stop-color": "#e6e9e6" }, g1);
-    el("stop", { offset: 1, "stop-color": "#f3f4f3" }, g1);
-    const g2 = el("linearGradient", { id: "grad-r2", x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
-    el("stop", { offset: 0, "stop-color": "#0e7a45", "stop-opacity": 0.2 }, g2);
-    el("stop", { offset: 1, "stop-color": "#0e7a45", "stop-opacity": 0 }, g2);
-    const pat = el("pattern", { id: "hachura", width: 6, height: 6, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
-    el("rect", { width: 6, height: 6, fill: "#fafbfa" }, pat);
-    el("line", { x1: 0, y1: 0, x2: 0, y2: 6, stroke: "#eceeec", "stroke-width": 2 }, pat);
     this.n = {
       grade: el("g", {}, svg),
       encerrado: el("rect", { class: "g-encerrado" }, svg),
       encRot: el("text", { class: "g-encerrado-rot", "text-anchor": "middle" }, svg),
       melhor: el("rect", { class: "g-melhor", rx: 12 }, svg),
       segundo: el("rect", { class: "g-segundo", rx: 12 }, svg),
-      r1a: el("path", { class: "g-r1-area" }, svg),
-      r1l: el("path", { class: "g-r1-linha" }, svg),
-      r2a: el("path", { class: "g-r2-area" }, svg),
-      r2l: el("path", { class: "g-r2-linha" }, svg),
       eixo: el("g", {}, svg),
-      pico: el("circle", { class: "g-pico", r: 5.5 }, svg),
+      pico: el("circle", { class: "g-pico", r: 4.5 }, svg),
       mira: el("line", { class: "g-mira" }, svg),
-      k1: el("circle", { class: "g-k1", r: 5.5 }, svg),
-      k2: el("circle", { class: "g-k2", r: 7 }, svg),
     };
     const etq = (cls, txt = "") => { const d = document.createElement("div"); d.className = `etiqueta ${cls}`; d.textContent = txt; a.appendChild(d); return d; };
     this.e = { melhor: etq("etiqueta-melhor", "melhor horário"), segundo: etq("etiqueta-segundo", "também bom"), pico: etq("etiqueta-pico", "pico"), hora: etq("etiqueta-hora") };
@@ -93,48 +101,75 @@ export class Grafico {
 
   usuario() { this.mexeu = true; cancelAnimationFrame(this.passeio); }
 
-  /** dados: {h0, o1, o2, melhor, segundo}; modo: "entrada" (onda), "transforma" ou "direto". */
+  /** dados: {h0, o1, o2, v (eleitores por urna em cada faixa), melhor, segundo}; modo: "entrada", "transforma", "direto". */
   define(dados, modo = "transforma") {
     this.h0 = dados.h0 ?? 8;
-    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), melhor: dados.melhor ?? 0, segundo: dados.segundo ?? null };
-    cancelAnimationFrame(this.anim);
-    if (reduz() || modo === "direto") { this.cur = alvo; this.desenha(); return; }
-    const de = modo === "entrada" ? { o1: ajusta(), o2: ajusta(), melhor: alvo.melhor, segundo: alvo.segundo } : structuredClone(this.cur);
-    const t0 = performance.now(), dur = modo === "entrada" ? 1500 : 900;
-    const passo = (agora) => {
-      const t = Math.min(1, (agora - t0) / dur);
-      const lerp = (a, b, k) => a + (b - a) * k;
-      const onda = (i, atraso) => (modo === "entrada" ? easeOut(Math.max(0, Math.min(1, (t - atraso - (i / N) * 0.35) / 0.55))) : easeIO(t));
-      this.cur = {
-        o1: alvo.o1.map((v, i) => lerp(de.o1[i], v, onda(i, 0))),
-        o2: alvo.o2.map((v, i) => lerp(de.o2[i], v, onda(i, 0.12))),
-        melhor: lerp(de.melhor, alvo.melhor, easeIO(t)),
-        segundo: alvo.segundo == null ? null : lerp(de.segundo ?? alvo.segundo, alvo.segundo, easeIO(t)),
-      };
-      this.alvo.style.setProperty("--prog", t);
-      this.desenha();
-      if (t < 1) this.anim = requestAnimationFrame(passo);
-      else { this.cur = alvo; this.desenha(); }
-    };
-    this.anim = requestAnimationFrame(passo);
+    const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), v: ajusta(dados.v), melhor: dados.melhor ?? 0, segundo: dados.segundo ?? null };
+    this.piscas = [];
+    if (reduz() || modo === "direto") { this.cur = alvo; this.tween = null; this.desenha(); this.liga(); return; }
+    const de = modo === "entrada" ? { ...alvo, o1: ajusta(), o2: ajusta() } : structuredClone(this.cur);
+    this.tween = { de, alvo, t0: performance.now(), dur: modo === "entrada" ? 1900 : 950, modo };
+    this.liga();
   }
 
-  /** Passeio automático da régua até a faixa i (mostra que dá para arrastar). Para no primeiro toque. */
-  passeia(i, atraso = 0) {
-    if (this.mexeu || reduz()) { this.vai(i, false); return; }
-    const t0 = performance.now() + atraso, dur = 1600, de = 0;
-    const passo = (agora) => {
-      const t = Math.max(0, Math.min(1, (agora - t0) / dur));
-      this.vai(Math.round(de + (i - de) * easeIO(t)), false);
-      if (t < 1 && !this.mexeu) this.passeio = requestAnimationFrame(passo);
+  passo(agora) {
+    const tw = this.tween;
+    if (!tw) return false;
+    const t = Math.min(1, (agora - tw.t0) / tw.dur);
+    const lerp = (a, b, k) => a + (b - a) * k;
+    const onda = (i, atraso) => (tw.modo === "entrada" ? easeOut(Math.max(0, Math.min(1, (t - atraso - (i / N) * 0.4) / 0.5))) : easeIO(Math.max(0, Math.min(1, (t - (i / N) * 0.15) / 0.85))));
+    this.cur = {
+      o1: tw.alvo.o1.map((v, i) => lerp(tw.de.o1[i], v, onda(i, 0))),
+      o2: tw.alvo.o2.map((v, i) => lerp(tw.de.o2[i], v, onda(i, 0.1))),
+      v: tw.alvo.v,
+      melhor: lerp(tw.de.melhor, tw.alvo.melhor, easeIO(t)),
+      segundo: tw.alvo.segundo == null ? null : lerp(tw.de.segundo ?? tw.alvo.segundo, tw.alvo.segundo, easeIO(t)),
     };
-    this.passeio = requestAnimationFrame(passo);
+    if (t >= 1) { this.cur = tw.alvo; this.tween = null; }
+    return true;
+  }
+
+  /** Liga o laço de animação enquanto houver o que animar (onda, transformação ou pontos piscando na tela). */
+  liga() {
+    if (this.rodando) return;
+    const pisca = () => !reduz() && this.visivel && document.visibilityState === "visible";
+    if (!this.tween && !pisca()) { this.desenha(); return; }
+    this.rodando = true;
+    let ultimo = performance.now();
+    const laco = (agora) => {
+      const dt = Math.min(0.1, (agora - ultimo) / 1000);
+      ultimo = agora;
+      const mexeu = this.passo(agora);
+      if (pisca()) this.semeia(dt, agora);
+      this.desenha(mexeu, agora);
+      if (this.tween || pisca()) this.raf = requestAnimationFrame(laco);
+      else { this.rodando = false; this.desenha(); }
+    };
+    this.raf = requestAnimationFrame(laco);
+  }
+
+  /** Novos "votos": pontos que piscam, mais onde mais gente votou naquela faixa. */
+  semeia(dt, agora) {
+    const v = this.cur.v, tot = v.reduce((a, b) => a + b, 0);
+    if (!tot) return;
+    let n = dt * 5; // ~5 piscadas por segundo no gráfico todo
+    while (n > 0) {
+      if (Math.random() < Math.min(1, n)) {
+        let r = Math.random() * tot, i = 0;
+        while (i < N - 1 && (r -= v[i]) > 0) i++;
+        const topo = Math.max(this.cur.o1[i], i < OFICIAIS ? this.cur.o2[i] : 0) / 100 * LINHAS;
+        if (topo >= 1) this.piscas.push({ i, j: Math.floor(Math.random() * Math.floor(topo)), t0: agora });
+      }
+      n -= 1;
+    }
+    this.piscas = this.piscas.filter((p) => agora - p.t0 < 900).slice(-40);
   }
 
   vai(i, avisa = true) {
     const antes = this.i;
     this.i = i;
     this.desenhaMira();
+    if (!this.rodando) this.pontos();
     if (i !== antes) {
       this.aoMover?.(i, this.cur);
       const m = Math.round(this.cur.melhor);
@@ -143,76 +178,127 @@ export class Grafico {
     }
   }
 
-  series({ r1 = true, r2 = true }) {
-    this.alvo.classList.toggle("esconde-1", !r1);
-    this.alvo.classList.toggle("esconde-2", !r2);
+  /** Passeio automático da régua até a faixa i (mostra que dá para arrastar). Para no primeiro toque. */
+  passeia(i, atraso = 0) {
+    if (this.mexeu || reduz()) { this.vai(i, false); return; }
+    const t0 = performance.now() + atraso, dur = 1600;
+    const passo = (agora) => {
+      const t = Math.max(0, Math.min(1, (agora - t0) / dur));
+      this.vai(Math.round(i * easeIO(t)), false);
+      if (t < 1 && !this.mexeu) this.passeio = requestAnimationFrame(passo);
+    };
+    this.passeio = requestAnimationFrame(passo);
   }
 
-  desenha() {
+  series({ r1 = true, r2 = true }) {
+    this.mostra = { r1, r2 };
+    this.alvo.classList.toggle("esconde-1", !r1);
+    this.desenha();
+  }
+
+  geometria() {
     const a = this.alvo, W = Math.max(300, a.clientWidth), H = a.clientHeight || 360;
+    if (this.W === W && this.H === H && this.h0Desenhado === this.h0) return;
+    this.W = W; this.H = H; this.h0Desenhado = this.h0;
     const estreito = W < 560;
     const m = (this.m = { t: 40, r: 6, b: 32, l: estreito ? 30 : 38 });
-    const x = (this.x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r));
-    const xb = (i) => m.l + (i / N) * (W - m.l - m.r);
-    const y = (this.y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b));
-    this.svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
-    const n = this.n, c = this.cur;
-
-    if (this.W !== W || this.H !== H || this.h0Desenhado !== this.h0) {
-      this.W = W; this.H = H; this.h0Desenhado = this.h0;
-      n.grade.innerHTML = ""; n.eixo.innerHTML = "";
-      for (const v of [0, 25, 50, 75, 100]) {
-        el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: y(v), y2: y(v) }, n.grade);
-        if (v % 50 === 0) el("text", { class: "g-eixo", x: m.l - 8, y: y(v) + 4, "text-anchor": "end" }, n.eixo).textContent = v ? `${v}%` : "0";
-      }
-      const passo = estreito ? 8 : 4;
-      for (let i = 0; i <= OFICIAIS; i += passo) {
-        el("text", { class: "g-eixo", x: xb(i), y: H - 8, "text-anchor": i === 0 ? "start" : "middle" }, n.eixo).textContent = hora(i, this.h0);
-      }
-      const x0 = xb(OFICIAIS);
-      Object.entries({ x: x0, y: m.t, width: W - m.r - x0, height: H - m.t - m.b }).forEach(([k, v]) => n.encerrado.setAttribute(k, v));
-      n.encRot.setAttribute("x", (x0 + W - m.r) / 2);
-      n.encRot.setAttribute("y", m.t - 8);
-      n.encRot.textContent = W - m.r - x0 > 50 ? "encerrou" : "";
+    this.x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r);
+    this.xb = (i) => m.l + (i / N) * (W - m.l - m.r);
+    this.y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b);
+    const dpr = (this.dpr = Math.min(2, devicePixelRatio || 1));
+    this.cv.width = W * dpr; this.cv.height = H * dpr;
+    this.cv.style.width = `${W}px`; this.cv.style.height = `${H}px`;
+    const passoX = (W - m.l - m.r) / N, passoY = (H - m.t - m.b) / LINHAS;
+    const raio = (this.raio = Math.max(1.6, Math.min(passoX, passoY) * 0.3));
+    this.sp = {
+      vazio: sprite(raio * 0.62, COR.vazio, 0, dpr),
+      r1: sprite(raio, COR.r1, 0, dpr),
+      r1Forte: sprite(raio * 1.15, COR.r1Forte, 0, dpr),
+      verde: sprite(raio, COR.verde, raio * 1.4, dpr),
+      verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
+      brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
+    };
+    const svg = this.svg, n = this.n;
+    svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+    n.grade.innerHTML = ""; n.eixo.innerHTML = "";
+    for (const v of [0, 50, 100]) {
+      el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: this.y(v) + (v ? 0 : 2), y2: this.y(v) + (v ? 0 : 2) }, n.grade);
+      el("text", { class: "g-eixo", x: m.l - 8, y: this.y(v) + 4, "text-anchor": "end" }, n.eixo).textContent = v ? `${v}%` : "0";
     }
+    const passo = estreito ? 8 : 4;
+    for (let i = 0; i <= OFICIAIS; i += passo) {
+      el("text", { class: "g-eixo", x: this.xb(i), y: H - 8, "text-anchor": i === 0 ? "start" : "middle" }, n.eixo).textContent = hora(i, this.h0);
+    }
+    const x0 = this.xb(OFICIAIS);
+    Object.entries({ x: x0, y: m.t - 6, width: W - m.r - x0, height: H - m.t - m.b + 8 }).forEach(([k, v]) => n.encerrado.setAttribute(k, v));
+    n.encRot.setAttribute("x", (x0 + W - m.r) / 2);
+    n.encRot.setAttribute("y", m.t - 12);
+    n.encRot.textContent = W - m.r - x0 > 50 ? "encerrou" : "";
+  }
 
-    const p1 = c.o1.map((v, i) => [x(i), y(v)]);
-    const p2 = c.o2.slice(0, OFICIAIS).map((v, i) => [x(i), y(v)]);
-    const l1 = caminho(p1), l2 = caminho(p2);
-    const fecha = (p) => `L${p[p.length - 1][0].toFixed(1)},${y(0)}L${p[0][0].toFixed(1)},${y(0)}Z`;
-    n.r1l.setAttribute("d", l1); n.r1a.setAttribute("d", l1 + fecha(p1));
-    n.r2l.setAttribute("d", l2); n.r2a.setAttribute("d", l2 + fecha(p2));
-
+  desenha(_mexeu, agora = performance.now()) {
+    this.geometria();
+    const { n, m, H } = this, c = this.cur;
     const banda = (r, ini) => {
       if (ini == null) { r.setAttribute("width", 0); return null; }
-      const b0 = xb(ini), b1 = xb(ini + 4);
-      Object.entries({ x: b0 + 1, y: m.t - 6, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 6 }).forEach(([k, v]) => r.setAttribute(k, v));
+      const b0 = this.xb(ini), b1 = this.xb(ini + 4);
+      Object.entries({ x: b0 + 1, y: m.t - 8, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 10 }).forEach(([k, v]) => r.setAttribute(k, v));
       return (b0 + b1) / 2;
     };
     const cm = banda(n.melhor, c.melhor), cs = banda(n.segundo, c.segundo);
-    this.e.melhor.style.left = `${cm}px`; this.e.melhor.style.top = `${m.t - 6}px`;
-    this.e.segundo.style.opacity = cs == null || Math.abs(cs - cm) < 132 ? 0 : 1; // não encosta na do melhor
-    if (cs != null) { this.e.segundo.style.left = `${cs}px`; this.e.segundo.style.top = `${m.t - 6}px`; }
-
+    this.e.melhor.style.left = `${cm}px`; this.e.melhor.style.top = `${m.t - 8}px`;
+    this.e.segundo.style.opacity = cs == null || Math.abs(cs - cm) < 132 ? 0 : 1;
+    if (cs != null) { this.e.segundo.style.left = `${cs}px`; this.e.segundo.style.top = `${m.t - 8}px`; }
     let pk = 0;
     for (let i = 0; i < OFICIAIS; i++) if (c.o1[i] > c.o1[pk]) pk = i;
-    const px = x(pk);
+    const px = this.x(pk), topo = this.y(Math.ceil(c.o1[pk] / 5) * 5) - this.raio * 2.6;
+    n.pico.setAttribute("cx", px); n.pico.setAttribute("cy", topo);
+    n.pico.style.opacity = this.mostra.r1 && c.o1[pk] > 0 ? 1 : 0;
     const longe = Math.abs(px - cm) > 80 && (cs == null || Math.abs(px - cs) > 80 || this.e.segundo.style.opacity === "0");
-    n.pico.setAttribute("cx", x(pk)); n.pico.setAttribute("cy", y(c.o1[pk]));
-    this.e.pico.style.left = `${x(pk)}px`; this.e.pico.style.top = `${y(c.o1[pk])}px`;
-    this.e.pico.style.opacity = longe && c.o1[pk] > 0 ? 1 : 0;
+    this.e.pico.style.left = `${px}px`; this.e.pico.style.top = `${topo + 6}px`;
+    this.e.pico.style.opacity = longe && this.mostra.r1 && c.o1[pk] > 0 ? 1 : 0;
+    this.pontos(agora);
     this.desenhaMira();
+  }
+
+  pontos(agora = performance.now()) {
+    const { ctx, sp, dpr, m, H } = this, c = this.cur;
+    if (!sp) return;
+    ctx.clearRect(0, 0, this.cv.width, this.cv.height);
+    const passoY = (H - m.t - m.b) / LINHAS;
+    const yRow = (j) => (H - m.b - (j + 0.5) * passoY) * dpr;
+    const poe = (img, x, y, alfa = 1, esc = 1) => {
+      if (alfa <= 0.01) return;
+      ctx.globalAlpha = Math.min(1, alfa);
+      const w = img.width * esc, h = img.height * esc;
+      ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
+    };
+    for (let i = 0; i < N; i++) {
+      const x = this.x(i) * dpr, foco = i === this.i;
+      const k1 = this.mostra.r1 ? (c.o1[i] / 100) * LINHAS : 0;
+      const k2 = this.mostra.r2 && i < OFICIAIS ? (c.o2[i] / 100) * LINHAS : 0;
+      for (let j = 0; j < LINHAS; j++) {
+        const y = yRow(j);
+        const a2 = Math.max(0, Math.min(1, k2 - j)), a1 = Math.max(0, Math.min(1, k1 - j));
+        if (a2 < 1 && a1 < 1) poe(sp.vazio, x, y, 1);
+        if (a1 > 0 && a2 < 1) poe(foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2) + (a2 ? 0 : 0));
+        if (a2 > 0) poe(foco ? sp.verdeForte : sp.verde, x, y, a2);
+      }
+    }
+    for (const p of this.piscas) {
+      const t = (agora - p.t0) / 900, k = Math.sin(Math.PI * t);
+      const verde = this.mostra.r2 && p.i < OFICIAIS && p.j < (c.o2[p.i] / 100) * LINHAS;
+      poe(verde ? sp.brilho : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde ? k : k * 0.8, 1 + 0.35 * k);
+    }
+    ctx.globalAlpha = 1;
   }
 
   desenhaMira() {
     const { n, m } = this;
-    if (this.i == null || !m) { [n.mira, n.k1, n.k2].forEach((e) => e.setAttribute("visibility", "hidden")); this.e.hora.style.opacity = 0; return; }
+    if (this.i == null || !m) { n.mira.setAttribute("visibility", "hidden"); this.e.hora.style.opacity = 0; return; }
     const i = this.i, cx = this.x(i), c = this.cur;
-    Object.entries({ x1: cx, x2: cx, y1: m.t - 6, y2: this.H - m.b }).forEach(([k, v]) => n.mira.setAttribute(k, v));
-    n.k1.setAttribute("cx", cx); n.k1.setAttribute("cy", this.y(c.o1[i]));
-    n.k2.setAttribute("cx", cx); n.k2.setAttribute("cy", this.y(c.o2[i] || 0));
-    n.k2.setAttribute("visibility", i < OFICIAIS ? "visible" : "hidden");
-    [n.mira, n.k1].forEach((e) => e.setAttribute("visibility", "visible"));
+    Object.entries({ x1: cx, x2: cx, y1: m.t - 8, y2: this.H - m.b + 2 }).forEach(([k, v]) => n.mira.setAttribute(k, v));
+    n.mira.setAttribute("visibility", "visible");
     const e = this.e.hora;
     e.textContent = hora(i, this.h0);
     e.style.left = `${Math.max(28, Math.min(this.W - 28, cx))}px`;

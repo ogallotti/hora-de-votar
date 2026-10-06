@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { simula2, procura, demanda, horarios, hora, duracao, fator, chanceFila, analisa, OFICIAIS } from "../public/js/modelo.js";
+import { espera, minutos, simula2, procura, demanda, horarios, hora, duracao, fator, chanceFila, analisa, OFICIAIS } from "../public/js/modelo.js";
 
 test("demanda devolve quem votou depois do encerramento às 2 últimas horas", () => {
   const v = Array(OFICIAIS).fill(2).concat([4, 4]);
@@ -80,4 +80,14 @@ test("segundo melhor horário não sobrepõe o primeiro", () => {
   assert.ok(r.melhor >= 9 && r.melhor <= 11);
   assert.ok(Math.abs(r.segundo - r.melhor) >= 4);
   assert.ok(r.segundo >= 23 && r.segundo <= 25);
+});
+
+test("espera pela fórmula de filas: cresce com a ocupação e tem teto", () => {
+  assert.equal(espera(0, 80), 0);
+  assert.ok(espera(0.5, 60) < espera(0.9, 60));
+  assert.ok(Math.abs(espera(0.5, 60) - 39) < 1); // 0,5/0,5 × 1,3/2 × 60
+  assert.equal(espera(1, 60), espera(0.97, 60));
+  assert.equal(minutos(30), "30 s");
+  assert.equal(minutos(8 * 60), "8 min");
+  assert.equal(minutos(3600), "mais de 30 min");
 });

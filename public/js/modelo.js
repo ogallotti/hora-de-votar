@@ -122,6 +122,26 @@ export function horarios(o) {
   return { melhor, pior, mMelhor, mPior, segundo, mSegundo };
 }
 
+/**
+ * Espera média estimada (s) numa fila com uma urna, pela fórmula de Pollaczek-Khinchine (chegadas ao acaso):
+ *   espera = ρ / (1 − ρ) × (1 + cs²) / 2 × S
+ * ρ = ocupação da urna (no 1º turno, a % que pegou fila: numa fila simples, a chance de esperar é a ocupação),
+ * S = tempo de cada eleitor (urna + mesa), cs² = variabilidade desse tempo (0,3: uns rápidos, outros lentos).
+ * ρ fica limitado a 0,97: perto de 1 a fórmula explode e o site diz só "mais de 30 min".
+ */
+export function espera(rho, S, cs2 = 0.3) {
+  const r = Math.min(0.97, Math.max(0, rho));
+  return r <= 0 || !S ? 0 : (r / (1 - r)) * ((1 + cs2) / 2) * S;
+}
+
+/** Segundos de espera → "quase nada", "40 s", "8 min", "mais de 30 min". */
+export function minutos(s) {
+  if (s < 10) return "quase nada";
+  if (s < 55) return `${Math.round(s / 10) * 10} s`;
+  if (s > 1800) return "mais de 30 min";
+  return `${Math.round(s / 60)} min`;
+}
+
 /** Faixa i → "13h15" na hora local, a partir da hora de abertura h0. */
 export function hora(i, h0 = 8) {
   const min = h0 * 60 + i * FAIXA_MIN;
@@ -151,12 +171,15 @@ export function analisa(d, h0 = 8, perfil = null) {
   const v = d.v.map((x) => x / ns); // por urna
   const o1 = chanceFila(d.v, d.q, ns > 1 ? 1 : 2);
   const t2 = d.t2 ?? (d.t1 ? d.t1 * 0.4 : 40);
-  const { o: sim, espera } = simula2(procura(v, o1, perfil, d.t1, d.me), t2, d.me);
+  const { o: sim } = simula2(procura(v, o1, perfil, d.t1, d.me), t2, d.me);
   const o2 = suaviza(sim).map(Math.round);
   const r1 = horarios(o1), r2 = horarios(o2);
+  const me = d.me ?? MESA_PADRAO;
+  const w1 = o1.map((x) => espera(x / 100, (d.t1 || 0) + me));
+  const w2 = o2.map((x) => espera(x / 100, t2 + me));
   const cheio1 = o1.slice(0, OFICIAIS).filter((x) => x >= 75).length; // faixas em que 3 de 4 pegaram fila
   return {
-    h0, o1, o2, espera, r1, r2,
+    h0, o1, o2, w1, w2, r1, r2,
     t1: d.t1, t2: d.t2, me: d.me, n: d.n,
     fator: fator(d.t1, t2, d.me),
     horasFila1: (cheio1 * FAIXA_MIN) / 60,
