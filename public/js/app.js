@@ -263,14 +263,15 @@ $("#baixar").addEventListener("click", async () => {
     for (let j = 0; j < L; j++) {
       const verde = j < k2, cinza = j < k1;
       if (verde) { x.fillStyle = "rgba(63,210,131,.25)"; x.beginPath(); x.arc(px(i), py(j), rr * 2, 0, 7); x.fill(); }
-      x.fillStyle = verde ? "#0e7a45" : cinza ? "#a7aeaa" : "#eceeec";
-      x.beginPath(); x.arc(px(i), py(j), verde || cinza ? rr : rr * 0.62, 0, 7); x.fill();
+      if (!verde && !cinza) continue; // sem ponto onde ninguém esperou
+      x.fillStyle = verde ? "#0e7a45" : "#cdd2cf";
+      x.beginPath(); x.arc(px(i), py(j), verde ? rr : rr * 0.7, 0, 7); x.fill();
     }
   }
   x.fillStyle = "#6b726e"; x.font = "500 32px Geist, sans-serif";
   for (let i = 0; i <= N; i += 120 / FAIXA_MIN) { x.textAlign = i ? "center" : "left"; x.fillText(hora(i, a.h0), gx + (i / N) * gw, gy + gh + 54); }
   x.textAlign = "left";
-  x.fillStyle = "#a7aeaa"; x.beginPath(); x.arc(110, 1624, 12, 0, 7); x.fill();
+  x.fillStyle = "#cdd2cf"; x.beginPath(); x.arc(110, 1624, 9, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.font = "500 32px Geist, sans-serif"; x.fillText(`${r.dez} de 10 pegaram fila no 1º turno`, 146, 1634);
   x.fillStyle = "#0e7a45"; x.beginPath(); x.arc(110, 1676, 12, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.fillText(a.fator ? `2º turno: fila ${fmt(a.fator)}× mais rápida` : "2º turno, estimativa", 146, 1688);

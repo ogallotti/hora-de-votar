@@ -8,7 +8,7 @@ import { hora, OFICIAIS, FAIXA_MIN, JANELA } from "./modelo.js";
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
 const LINHAS = 20;      // 20 pontos por coluna: cada um = 5%
-const COR = { vazio: "#eceeec", r1: "#a7aeaa", r1Forte: "#6f7772", verde: "#0e7a45", brilho: "#3fd283" };
+const COR = { r1: "#cdd2cf", r1Forte: "#8d958f", verde: "#0e7a45", brilho: "#3fd283" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const easeOut = (t) => 1 - (1 - t) ** 3;
@@ -212,9 +212,8 @@ export class Grafico {
     const passoX = (W - m.l - m.r) / N, passoY = (H - m.t - m.b) / LINHAS;
     const raio = (this.raio = Math.max(1.6, Math.min(passoX, passoY) * 0.3));
     this.sp = {
-      vazio: sprite(raio * 0.62, COR.vazio, 0, dpr),
-      r1: sprite(raio, COR.r1, 0, dpr),
-      r1Forte: sprite(raio * 1.15, COR.r1Forte, 0, dpr),
+      r1: sprite(raio * 0.7, COR.r1, 0, dpr),         // 1º turno: menor e mais claro, para o verde do 2º se destacar
+      r1Forte: sprite(raio * 0.85, COR.r1Forte, 0, dpr),
       verde: sprite(raio, COR.verde, raio * 1.4, dpr),
       verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
       brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
@@ -281,7 +280,6 @@ export class Grafico {
       for (let j = 0; j < LINHAS; j++) {
         const y = yRow(j);
         const a2 = Math.max(0, Math.min(1, k2 - j)), a1 = Math.max(0, Math.min(1, k1 - j));
-        if (a2 < 1 && a1 < 1) poe(sp.vazio, x, y, 1);
         if (a1 > 0 && a2 < 1) poe(foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2) + (a2 ? 0 : 0));
         if (a2 > 0) poe(foco ? sp.verdeForte : sp.verde, x, y, a2);
       }
