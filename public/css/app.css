@@ -183,8 +183,8 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 
 .grafico { position: relative; height: clamp(280px, 44vh, 480px); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
 .grafico:focus-visible { outline-offset: 8px; border-radius: 12px; }
-.grafico svg { position: relative; z-index: 1; display: block; width: 100%; height: 100%; overflow: visible; }
-.g-pontos { position: absolute; inset: 0 auto auto 0; z-index: 0; pointer-events: none; }
+.grafico svg { position: relative; z-index: 0; display: block; width: 100%; height: 100%; overflow: visible; }
+.g-pontos { position: absolute; inset: 0 auto auto 0; z-index: 1; pointer-events: none; }
 .etiqueta { z-index: 2; }
 .g-grade { stroke: var(--linha); stroke-width: 1; }
 .g-base { stroke: var(--linha-2); stroke-width: 1; }
@@ -309,4 +309,26 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   .barra { padding-right: 6px; }
   .contexto:not([hidden]) ~ .perto { display: none; }
   .tecla { height: 44px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; }
+}
+
+/* celular, no resultado: o gráfico logo depois da manchete; a busca e as seções depois da leitura */
+@media (max-width: 760px) {
+  body.resultado .palco { display: flex; flex-direction: column; }
+  body.resultado .cabeca { order: 0; padding-bottom: 8px; }
+  body.resultado .palco-grafico { order: 1; margin-top: 18px; }
+  body.resultado .secoes { order: 2; }
+  body.resultado .extras { order: 3; }
+  body.resultado .busca { order: 4; width: 100%; margin-top: 36px; }
+  .secoes { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; width: 100%; min-width: 0; }
+  body.resultado .palco > * { max-width: 100%; min-width: 0; }
+  .secoes-rot { text-align: left; }
+  .chips { flex-wrap: nowrap; justify-content: flex-start; overflow-x: auto; scroll-snap-type: x proximity; padding: 2px 2px 6px; margin: 0 -20px; padding-inline: 20px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip { flex-shrink: 0; scroll-snap-align: start; }
+  .contexto { max-width: 38%; }
+  .tecla { height: 44px; padding: 0 12px; font-size: 12px; letter-spacing: .05em; }
+  .tecla:disabled { display: none; }
+  .barra { padding-right: 6px; }
+  .contexto:not([hidden]) ~ .perto { display: none; }
+  .compartilha .btn-principal { flex: 1 1 auto; }
 }

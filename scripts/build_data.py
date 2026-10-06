@@ -8,7 +8,7 @@ Saídas (formato no README):
     public/data/municipios.json         [[uf, código, nome, abertura, seções, [lat, lon] do centro], ...]
     public/data/idx/<UF>.json           [[município, id do local, nome, bairro, endereço, nome antigo], ...] (busca)
     public/data/m/<código>.json         locais do município, curva de cada local e do município
-    public/data/z/<código>-<zona>.json  curva de cada seção da zona
+    public/data/z/<código>-<zona>.json  curva de cada seção da zona e o minuto de cada eleitor ("t", ver minutos())
     public/data/br.json                 curva do Brasil e de cada UF
 
 Métrica: faixas de 15 min contadas a partir da abertura oficial (8h de Brasília = hora local da urna).
@@ -184,6 +184,29 @@ def perfil(curvas):
     return [round(x / s, 5) for x in tot] if s else None
 
 
+ALF = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def minutos(r, h0):
+    """Minuto (desde a abertura oficial) em que cada eleitor começou a votar, codificado em ~1 caractere por eleitor:
+    diferença para o anterior em base 62 (0-9a-zA-Z); diferença ≥ 62 vira "~" + base 36 + ".". Ordem cronológica."""
+    t0 = h0 * 3600
+    ms = sorted(max(0, int((ini - t0) // 60)) for ini, _, _ in intervalos(r))
+    out, ant = [], 0
+    for m in ms:
+        d = m - ant
+        ant = m
+        if d < 62:
+            out.append(ALF[d])
+        else:
+            b, x = "", d
+            while x:
+                b = "0123456789abcdefghijklmnopqrstuvwxyz"[x % 36] + b
+                x //= 36
+            out.append(f"~{b}.")
+    return "".join(out)
+
+
 def mediana(xs):
     xs = [x for x in xs if x is not None and x >= 0]
     return statistics.median(xs) if xs else None
@@ -290,7 +313,7 @@ def main():
             loc["_c"].append((v, q))
             t = tempos(r, uf in GOV2)
             loc["_t"] = loc.get("_t", []) + [t]
-            secoes[(m, z)][s] = {"v": corta(v), "q": corta(q, len(v)), "n": len(r["f"]), **t}
+            secoes[(m, z)][s] = {"v": corta(v), "q": corta(q, len(v)), "n": len(r["f"]), **t, "t": minutos(r, h0)}
         uf_v, uf_o, uf_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
         uf_t = [d for ss in secoes.values() for d in ss.values() if d.get("t1")]
         idx_uf = []

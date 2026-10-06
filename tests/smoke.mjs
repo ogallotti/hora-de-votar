@@ -3,7 +3,7 @@
 import { chromium } from "playwright-core";
 import { mkdirSync } from "node:fs";
 
-const BASE = process.argv[2] || "http://127.0.0.1:4195";
+const BASE = process.argv[2] || "http://127.0.0.1:4198";
 const ROTA = process.argv[3] || "/s/71072/1/1";
 const OUT = process.env.SHOTS || "tests/shots";
 mkdirSync(OUT, { recursive: true });

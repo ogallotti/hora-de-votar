@@ -1,6 +1,6 @@
 // Busca universal como um usuário: vários jeitos de achar a seção.
 import { chromium } from "playwright-core";
-const BASE = process.argv[2] || "http://127.0.0.1:4195";
+const BASE = process.argv[2] || "http://127.0.0.1:4198";
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 2 });
 const erros = [];

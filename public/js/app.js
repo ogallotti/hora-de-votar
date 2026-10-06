@@ -34,18 +34,20 @@ function json(url) {
 ["#cabeca", "#busca", "#palco-grafico"].forEach((s, i) => { $(s).classList.add("entra"); $(s).style.setProperty("--i", i); });
 
 // ------------------------------------------------------------ leitura da régua: espera e tempo na urna
-let h0 = 8, analise = null;
+let h0 = 8, analise = null, contagem = null;
+const milhoes = (n) => (n >= 1e6 ? `${fmt(n / 1e6)} milhões de` : n >= 1e3 ? `${Math.round(n / 1e3)} mil` : String(Math.round(n)));
 function leitura(i) {
   if (!analise) return;
   const a = analise, dentro = i < OFICIAIS;
   $("#l-hora").textContent = hora(i, h0);
-  $("#l-faixa").textContent = dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento";
+  const n = contagem?.[i] ?? 0;
+  const quem = n ? ` · ${milhoes(n)} ${n === 1 ? "eleitor votou" : "eleitores votaram"}` : "";
+  $("#l-faixa").textContent = (dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento") + quem;
   $("#w1").textContent = minutos(a.w1[i] || 0);
   $("#w2").textContent = dentro ? minutos(a.w2[i] || 0) : "urna fechada";
   $("#u1").textContent = duracao(a.t1);
   $("#u2").textContent = duracao(a.t2 ?? (a.t1 ? a.t1 * 0.45 : null));
 }
-const porUrna = (d) => d.v.map((x) => x / (d.ns || 1));
 
 const grafico = new Grafico($("#grafico"), {
   aoMover: (i) => leitura(i),
@@ -67,7 +69,11 @@ async function mostraBrasil(modo) {
   br ??= await json("/data/br.json");
   const a = (analise = analisa(br, 8, br.perfil));
   h0 = 8;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, v: porUrna(br), melhor: a.r2.melhor, segundo: a.r2.segundo }, modo);
+  contagem = br.v;
+  const total = br.v.reduce((x, y) => x + y, 0);
+  const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, segundo: a.r2.segundo }, modo);
+  $("#arraste").textContent = `Cada ponto representa cerca de ${milhoes(escala).replace(/ de$/, "")} eleitores, no horário em que votaram. Arraste pelo gráfico para ver cada horário.`;
   $("#rotulo-grafico").textContent = `Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
   return a;
 }
@@ -145,7 +151,9 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   } else sec.hidden = true;
 
   $("#rotulo-grafico").textContent = ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, v: porUrna(ctx.d), melhor: a.r2.melhor, segundo: a.r2.segundo }, primeira ? "entrada" : "transforma");
+  contagem = ctx.d.v;
+  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, segundo: a.r2.segundo }, primeira ? "entrada" : "transforma");
+  $("#arraste").textContent = `Cada ponto é um eleitor ${ctx.secao ? "desta urna" : "deste local"}, no minuto em que foi votar (${(ctx.eleitores?.length || ctx.d.n || 0).toLocaleString("pt-BR")} no 1º turno). Arraste pelo gráfico para ver cada horário.`;
   grafico.passeia(a.r2.melhor + 2, primeira ? 1600 : 900);
   primeira = false;
 
