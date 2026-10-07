@@ -41,11 +41,13 @@ if (previa) {
 const a = `${raiz}audio/`;
 const entradas = ["-i", `${a}trilha.mp3`];
 const filtros = [`[0:a]atrim=0:${FIM_TRILHA},afade=t=out:st=${(FIM_TRILHA - 0.03).toFixed(3)}:d=0.03,volume=0.9,apad=whole_dur=${DURACAO}[m]`];
-SONS.forEach(([arq, t, vol], i) => {
+SONS.forEach(([arq, t, vol, dur], i) => {
   if (!existsSync(`${a}${arq}`)) throw new Error(`falta ${arq}`);
   entradas.push("-i", `${a}${arq}`);
   const ms = Math.max(0, Math.round(t * 1000));
-  filtros.push(`[${i + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,volume=${vol},adelay=${ms}|${ms}[s${i}]`);
+  // com duração: corta junto com o movimento, com 60 ms de fade para não estalar
+  const corte = dur ? `atrim=0:${dur},afade=t=out:st=${Math.max(0, dur - 0.06).toFixed(3)}:d=0.06,` : "";
+  filtros.push(`[${i + 1}:a]aformat=sample_rates=48000:channel_layouts=stereo,${corte}volume=${vol},adelay=${ms}|${ms}[s${i}]`);
 });
 filtros.push(`[m]aformat=sample_rates=48000:channel_layouts=stereo[m2]`);
 filtros.push(`[m2]${SONS.map((_, i) => `[s${i}]`).join("")}amix=inputs=${SONS.length + 1}:duration=first:normalize=0,alimiter=limit=0.84,atrim=0:${DURACAO}[out]`);
