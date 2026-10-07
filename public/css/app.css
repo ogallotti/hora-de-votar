@@ -247,7 +247,7 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .leitura-hora span { font-size: 40px; font-weight: 650; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
 .leitura-hora small { font-size: 13.5px; color: var(--tinta-3); margin-top: 6px; max-width: 26ch; }
 .leitura-hora .lh-rot { margin: 0 0 4px; font-weight: 600; color: var(--tinta-2); }
-.leitura-turno { display: grid; grid-template-columns: auto 1fr; align-items: baseline; gap: 2px 12px; padding-left: 22px; border-left: 1px solid var(--linha-2); }
+.leitura-turno { display: grid; grid-template-columns: 1fr; align-items: baseline; gap: 2px 12px; padding-left: 22px; border-left: 1px solid var(--linha-2); }
 .lt-rot { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--tinta-3); }
 .lt-rot-2 { color: var(--verde-texto); }
 .lt-num { font-size: 28px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
