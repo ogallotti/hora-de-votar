@@ -56,8 +56,8 @@ function leitura(i) {
   $("#l-hora").textContent = hora(i, h0);
   const n = contagem?.[i] ?? 0;
   $("#l-faixa").textContent = !dentro
-    ? "depois do encerramento, só vota quem já estava na fila"
-    : n ? `${milhoes(n)} ${n === 1 ? "pessoa votou" : "pessoas votaram"} nesse horário no 1º turno` : "ninguém votou nesse horário no 1º turno";
+    ? "Depois do encerramento, só vota quem já estava na fila."
+    : n ? `${milhoes(n)} ${n === 1 ? "pessoa votou" : "pessoas votaram"} nesse horário no 1º turno.` : "Ninguém votou nesse horário no 1º turno.";
   // 1º turno: quanto tempo levou para votar quem chegou nesse horário, e quantos pegaram fila
   const dez = Math.round((a.o1[i] || 0) / 10);
   $("#w1").textContent = cerca(a.total1[i] || 0);

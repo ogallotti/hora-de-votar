@@ -240,14 +240,11 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 
 /* leitura do horário (régua): espera e tempo na urna nos dois turnos */
 .leitura {
-  display: grid; grid-template-columns: auto 1fr 1fr; align-items: center; gap: 20px 40px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 20px 40px;
   margin-top: 18px; padding: 20px 24px; border-radius: 20px; background: var(--fundo-2);
 }
-.leitura-hora { display: flex; flex-direction: column; min-width: 120px; }
-.leitura-hora span { font-size: 40px; font-weight: 650; letter-spacing: -.045em; line-height: 1; font-variant-numeric: tabular-nums; }
-.leitura-hora small { font-size: 13.5px; color: var(--tinta-3); margin-top: 6px; max-width: 26ch; }
-.leitura-hora .lh-rot { margin: 0 0 4px; font-weight: 600; color: var(--tinta-2); }
-.leitura-turno { display: grid; grid-template-columns: 1fr; align-items: baseline; gap: 2px 12px; padding-left: 22px; border-left: 1px solid var(--linha-2); }
+.leitura-turno { display: grid; grid-template-columns: 1fr; align-content: start; gap: 2px; padding-left: 22px; border-left: 1px solid var(--linha-2); }
+.leitura-hora { padding-left: 0; border-left: 0; }
 .lt-rot { grid-column: 1 / -1; font-size: 13px; font-weight: 600; color: var(--tinta-3); }
 .lt-rot-2 { color: var(--verde-texto); }
 .lt-num { font-size: 28px; font-weight: 650; letter-spacing: -.04em; line-height: 1.15; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -256,10 +253,7 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .lt-sub b { color: var(--tinta-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) {
   .leitura { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px 16px; padding: 16px 18px; }
-  .leitura-hora { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
-  .leitura-hora small { max-width: none; flex-basis: 100%; margin-top: 2px; }
-  .leitura-hora .lh-rot { flex-basis: auto; margin: 0; }
-  .leitura-hora span { font-size: 32px; }
+  .leitura-hora { grid-column: 1 / -1; }
   .leitura-turno { grid-template-columns: 1fr; padding-left: 0; border-left: 0; }
   .lt-num { font-size: 21px; white-space: normal; }
 }
