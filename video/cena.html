@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Hora de votar · vídeo de lançamento</title>
+<!-- Composição do vídeo (1080×1920, 30 fps). Linha do tempo GSAP pausada: o render (video/render.mjs) chama
+     window.quadro(t) a cada quadro. Cortes presos à grade de batidas da trilha: b(k) = 0,034 + 0,5·k s. -->
+<style>
+@font-face { font-family: Geist; src: url(../public/fonts/geist.woff2) format("woff2"); font-weight: 100 900; }
+@font-face { font-family: Archivo; src: url(../public/fonts/archivo-800.woff2) format("woff2"); font-weight: 800; }
+:root {
+  --tinta: #0a0c0b; --tinta-2: #474e4a; --tinta-3: #6b726e; --fundo: #ffffff; --fundo-2: #f5f6f5; --linha: #ecedec;
+  --verde: #0e7a45; --verde-texto: #0b6a3b; --tecla: #2fb36a; --vermelho: #e23a2e; --laranja: #f28a1f; --amarelo: #eab308; --azul: #a9c6ee;
+}
+* { box-sizing: border-box; margin: 0; }
+html, body { width: 1080px; height: 1920px; overflow: hidden; background: var(--fundo); }
+body { font-family: Geist, system-ui, sans-serif; color: var(--tinta); -webkit-font-smoothing: antialiased; font-feature-settings: "ss01"; }
+.cena { position: absolute; inset: 0; opacity: 0; }
+.centro { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.t-m { font-size: 76px; font-weight: 600; letter-spacing: -0.04em; line-height: 1.05; }
+.t-g { font-size: 120px; font-weight: 680; letter-spacing: -0.05em; line-height: 0.98; }
+.t-p { font-size: 46px; font-weight: 500; color: var(--tinta-2); letter-spacing: -0.02em; }
+.gigante { font-size: 560px; font-weight: 760; letter-spacing: -0.07em; line-height: 0.8; white-space: nowrap; }
+.verde { color: var(--verde); }
+.vermelho { color: var(--vermelho); }
+canvas { position: absolute; inset: 0; }
+.caixa-texto { position: relative; padding: 40px 56px; border-radius: 40px; background: var(--fundo); box-shadow: 0 30px 80px -30px rgb(10 12 11 / .25); }
+/* balões */
+.balao { position: absolute; padding: 26px 40px; border-radius: 999px; background: var(--fundo-2); border: 2px solid var(--linha); font-size: 54px; font-weight: 560; letter-spacing: -0.03em; white-space: nowrap; }
+/* log da urna */
+.log { width: 940px; padding: 44px 48px; border-radius: 36px; background: #0f1311; color: #d7e3dc; font: 500 34px/1.7 ui-monospace, "SF Mono", Menlo, monospace; text-align: left; box-shadow: 0 40px 100px -40px rgb(10 12 11 / .6); overflow: hidden; height: 560px; position: relative; }
+.log .h { color: #6fd39b; }
+.log > .h { position: absolute; left: 0; right: 0; top: 0; padding: 40px 48px 22px; background: #0f1311; z-index: 2; border-bottom: 2px solid #1f2723; }
+.log .linhas { position: absolute; left: 48px; right: 48px; bottom: 44px; }
+.carimbo { display: inline-block; padding: 18px 36px; border-radius: 22px; background: var(--tecla); color: #07120b; font-size: 64px; font-weight: 720; letter-spacing: -0.03em; box-shadow: inset 0 -8px 0 rgb(0 0 0 / .18); }
+/* celular */
+.fone { position: absolute; left: 50%; top: 420px; width: 760px; height: 1645px; margin-left: -380px; border-radius: 116px; background: #0b0d0c; padding: 22px; box-shadow: 0 80px 160px -60px rgb(10 12 11 / .55), inset 0 0 0 3px #2a2e2c; transform-origin: 50% 0; }
+.fone .tela { width: 100%; height: 100%; border-radius: 96px; overflow: hidden; background: #fff; position: relative; }
+.fone .tela img { width: 100%; display: block; }
+.fone .status { height: 128px; display: flex; align-items: center; justify-content: space-between; padding: 30px 70px 0; font-size: 34px; font-weight: 640; background: #fff; }
+.fone .status i { display: inline-block; width: 52px; height: 24px; border-radius: 7px; border: 3px solid #0a0c0b; position: relative; }
+.fone .status i::after { content: ""; position: absolute; inset: 3px 12px 3px 3px; background: #0a0c0b; border-radius: 3px; }
+.fone .ilha { position: absolute; top: 44px; left: 50%; width: 190px; height: 54px; margin-left: -95px; border-radius: 30px; background: #0b0d0c; z-index: 2; }
+.legenda-fone { position: absolute; top: 150px; left: 0; right: 0; text-align: center; }
+/* cartões da interface */
+.pilula { display: inline-flex; align-items: center; padding: 22px 40px; border-radius: 999px; font-size: 52px; font-weight: 640; color: #fff; }
+.pilula.verde-f { background: var(--verde); }
+.pilula.verm-f { background: #d9483b; }
+.cartao { padding: 44px 52px; border-radius: 44px; background: var(--fundo-2); text-align: left; min-width: 700px; }
+.cartao .rot { font-size: 34px; font-weight: 600; color: var(--verde-texto); }
+.cartao .num { font-size: 92px; font-weight: 680; letter-spacing: -0.045em; color: var(--verde); margin-top: 6px; }
+.cartao .sub { font-size: 34px; color: var(--tinta-3); margin-top: 4px; }
+/* notificações */
+.notif { position: absolute; left: 70px; right: 70px; padding: 30px 34px; border-radius: 40px; background: rgb(245 246 245 / .96); border: 2px solid var(--linha); box-shadow: 0 30px 70px -30px rgb(10 12 11 / .35); display: flex; gap: 26px; align-items: center; }
+.notif .ic { width: 92px; height: 92px; border-radius: 24px; background: #25d366; flex: none; display: grid; place-items: center; }
+.notif .ic svg { width: 56px; height: 56px; fill: #fff; }
+.notif b { display: block; font-size: 36px; font-weight: 650; }
+.notif span { display: block; font-size: 36px; color: var(--tinta-2); margin-top: 2px; }
+.notif small { position: absolute; top: 28px; right: 34px; font-size: 28px; color: var(--tinta-3); }
+/* barra de busca (a do site) */
+.barra { width: 980px; height: 156px; display: flex; align-items: center; gap: 26px; padding: 0 14px 0 50px; border-radius: 999px; background: var(--fundo); border: 3px solid #dcdfdc; box-shadow: 0 2px 2px rgb(10 12 11 / .04), 0 30px 80px -30px rgb(10 12 11 / .3); }
+.barra svg { width: 54px; height: 54px; flex: none; }
+.barra .txt { flex: 1; min-width: 0; font-size: 44px; font-weight: 500; text-align: left; white-space: nowrap; overflow: hidden; }
+.barra .cursor { display: inline-block; width: 4px; height: 60px; background: var(--verde); vertical-align: -10px; margin-left: 4px; }
+.tecla { flex: none; height: 120px; padding: 0 34px; border-radius: 999px; background: var(--tecla); color: #07120b; display: grid; place-items: center; font: 800 38px/1 Archivo, Geist, sans-serif; letter-spacing: .06em; box-shadow: inset 0 -8px 0 rgb(0 0 0 / .18); }
+/* fim: urna */
+.marca { display: inline-flex; align-items: center; gap: .32em; white-space: nowrap; font: 800 100px/1 Archivo, Geist, sans-serif; text-transform: uppercase; letter-spacing: -0.01em; }
+.marca .tk { display: inline-block; padding: .36em .52em .42em; border-radius: 28px; background: var(--tecla); color: #07120b; font-size: .9em; box-shadow: inset 0 -12px 0 rgb(0 0 0 / .2), inset 0 3px 0 rgb(255 255 255 / .45), 0 16px 40px -14px rgb(14 122 69 / .7); }
+.digitos { display: flex; gap: 22px; }
+.digitos div { width: 150px; height: 190px; border-radius: 22px; border: 4px solid #c9cdca; display: grid; place-items: center; font-size: 130px; font-weight: 640; background: #fff; }
+.url { font-size: 64px; font-weight: 560; letter-spacing: -0.02em; color: var(--tinta-2); min-height: 80px; }
+.data { font-size: 40px; font-weight: 560; color: var(--tinta-3); }
+.flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+</style>
+</head>
+<body>
+<!-- 1. gancho -->
+<section class="cena" id="c-data"><div class="centro"><p class="t-m" id="data-t">25 de outubro.</p></div></section>
+<section class="cena" id="c-fila"><div class="centro"><p class="gigante" id="fila-t" style="font-size:330px">FILA?</p></div></section>
+<section class="cena" id="c-denovo"><div class="centro"><p class="t-g">De novo?</p></div></section>
+<!-- 2. lacuna: cada ponto é gente -->
+<section class="cena" id="c-gente"><canvas id="cv-gente" width="1080" height="1920"></canvas>
+  <div class="centro"><div class="caixa-texto" id="gente-caixa"><p class="t-g" id="contador">0</p><p class="t-p" id="gente-sub">eleitores votaram no 1º turno</p></div></div></section>
+<!-- 3. perda -->
+<section class="cena" id="c-anos"><div class="centro"><p class="t-p" id="anos-a">Somando todo mundo, foram</p><p class="gigante" id="anos-n" style="font-size:380px">0</p><p class="t-m" id="anos-b">anos dentro da cabine.</p></div></section>
+<!-- 4. bagunça -->
+<section class="cena" id="c-quando"><p class="t-m" id="quando-t" style="position:absolute;top:240px;left:0;right:0;text-align:center">A que horas eu vou?</p>
+  <div class="balao" id="b1" style="left:90px;top:560px">Cedo?</div>
+  <div class="balao" id="b2" style="right:80px;top:780px">Depois do almoço?</div>
+  <div class="balao" id="b3" style="left:120px;top:1010px">No fim do dia?</div>
+  <div class="balao" id="b4" style="right:110px;top:1230px">Antes do jogo?</div>
+  <div class="balao" id="b5" style="left:150px;top:1450px">Quando a fila acabar?</div>
+  <div class="centro" id="ninguem" style="opacity:0"><div class="caixa-texto"><p class="t-g">Ninguém sabe.</p></div></div></section>
+<!-- 5. clareza -->
+<section class="cena" id="c-urna"><div class="centro" style="gap:56px">
+  <p class="t-g" id="urna-t">Mas a urna sabe.</p>
+  <div class="log" id="log"><div class="h">log da urna · seção 410</div><div class="linhas" id="log-linhas"></div></div>
+  <p class="t-m" id="urna-b">Cada eleitor. Cada minuto.</p></div></section>
+<section class="cena" id="c-lemos"><div class="centro" style="gap:40px"><p class="t-m">Lemos todas.</p><span class="carimbo" id="carimbo">498 mil urnas</span></div></section>
+<!-- 6. resposta: o site de verdade -->
+<section class="cena" id="c-fone">
+  <div class="legenda-fone"><p class="t-m" id="lf">Digite sua seção.</p></div>
+  <div class="fone" id="fone"><div class="tela"><div class="ilha"></div><div class="status"><span>10:00</span><i></i></div><img id="clipe" alt=""></div></div></section>
+<section class="cena" id="c-va"><div class="centro" style="gap:30px"><p class="t-p">No 2º turno,</p><p class="t-g">Vá entre<br><span class="verde">12h20 e 13h20</span></p></div></section>
+<section class="cena" id="c-sua"><div class="centro" style="gap:60px">
+  <p class="t-m" id="sua-t">Sua seção…</p>
+  <div id="sua-a"><span class="pilula verm-f">evite das 8h às 10h</span></div>
+  <div id="sua-b" class="cartao"><p class="rot">No 2º turno (estimativa)</p><p class="num">cerca de 1 min</p><p class="sub">para votar, contando a fila</p></div>
+  <div id="sua-c"><span class="pilula verde-f">melhor horário · 12h20</span></div></div></section>
+<section class="cena" id="c-zap">
+  <p class="t-m" style="position:absolute;top:300px;left:0;right:0;text-align:center">Manda pra família.</p>
+  <div class="notif" id="n1" style="top:620px"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12.05 2C6.5 2 2.02 6.48 2.02 12.03c0 1.77.46 3.5 1.34 5.03L2 22l5.07-1.33a9.99 9.99 0 004.98 1.33h.01c5.54 0 10.03-4.48 10.03-10.03C22.09 6.48 17.6 2 12.05 2z"/></svg></div><div><b>Família</b><span>Mãe: que horas a gente vai votar?</span></div><small>agora</small></div>
+  <div class="notif" id="n2" style="top:860px"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12.05 2C6.5 2 2.02 6.48 2.02 12.03c0 1.77.46 3.5 1.34 5.03L2 22l5.07-1.33a9.99 9.99 0 004.98 1.33h.01c5.54 0 10.03-4.48 10.03-10.03C22.09 6.48 17.6 2 12.05 2z"/></svg></div><div><b>Família</b><span>Você: 12h20. Vi no horadevotar.com</span></div><small>agora</small></div>
+  <div class="notif" id="n3" style="top:1100px"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12.05 2C6.5 2 2.02 6.48 2.02 12.03c0 1.77.46 3.5 1.34 5.03L2 22l5.07-1.33a9.99 9.99 0 004.98 1.33h.01c5.54 0 10.03-4.48 10.03-10.03C22.09 6.48 17.6 2 12.05 2z"/></svg></div><div><b>Família</b><span>Tio Zé: manda o link da minha seção!</span></div><small>agora</small></div></section>
+<section class="cena" id="c-busca"><div class="centro" style="gap:70px">
+  <p class="t-m">Funciona com</p>
+  <div class="barra"><svg viewBox="0 0 256 256" fill="#6b726e"><path d="M232.49,215.51,185,168a92.12,92.12,0,1,0-17,17l47.53,47.54a12,12,0,0,0,17-17ZM44,112a68,68,0,1,1,68,68A68.07,68.07,0,0,1,44,112Z"/></svg><span class="txt" id="busca-txt"></span><span class="tecla">CONFIRMA</span></div>
+  <p class="t-p" id="busca-sub">a escola, o bairro, a cidade ou o número da seção</p>
+  <p class="t-m" id="gratis" style="opacity:0">Grátis. Sem cadastro.<br><span class="t-p" style="font-size:44px">Dados oficiais dos logs do TSE.</span></p></div></section>
+<!-- 7. fecho: a urna -->
+<section class="cena" id="c-fim"><div class="centro" style="gap:70px">
+  <div class="digitos" id="digitos"><div></div><div></div><div></div><div></div></div>
+  <p class="data" id="fim-data" style="opacity:0">2º turno · 25 de outubro</p>
+  <p class="marca" id="fim-marca" style="opacity:0">Hora de <span class="tk" id="fim-tecla">votar</span></p>
+  <p class="url" id="fim-url"></p></div></section>
+<div class="flash" id="flash"></div>
+
+<script src="vendor/gsap.min.js"></script>
+<script>
+const b = (k) => 0.034 + 0.5 * k; // batida k da trilha (120 BPM)
+const DURACAO = 30;
+const $ = (s) => document.querySelector(s);
+const tl = gsap.timeline({ paused: true });
+const SONS = []; // [arquivo, tempo, volume]: o render mistura com a trilha
+const som = (arq, t, vol = 1) => SONS.push([arq, +t.toFixed(3), vol]);
+const mostra = (id, t0, t1) => { tl.set(id, { opacity: 1 }, t0); tl.set(id, { opacity: 0 }, t1); };
+const flash = (t) => { tl.fromTo("#flash", { opacity: 0.85 }, { opacity: 0, duration: 0.18, ease: "power2.out", immediateRender: false }, t); };
+
+// ---------------------------------------------------------------- 1. gancho (0 a 2,5 s)
+mostra("#c-data", 0, b(2));
+tl.from("#data-t", { y: 60, opacity: 0, filter: "blur(16px)", duration: 0.5, ease: "expo.out" }, 0.05);
+mostra("#c-fila", b(2), b(4));
+tl.fromTo("#fila-t", { scale: 1.9, filter: "blur(30px)", opacity: 0 }, { scale: 1, filter: "blur(0px)", opacity: 1, duration: 0.45, ease: "expo.out" }, b(2));
+tl.to("#fila-t", { scale: 1.12, duration: 0.55, ease: "none" }, b(2) + 0.45);
+som("whoosh1.mp3", b(2) - 0.12, 0.7);
+mostra("#c-denovo", b(4), b(5));
+tl.from("#c-denovo .t-g", { y: 80, opacity: 0, duration: 0.3, ease: "back.out(2)" }, b(4));
+som("pop1.mp3", b(4), 0.6);
+
+// ---------------------------------------------------------------- 2. lacuna: gente (2,5 a 6 s)
+mostra("#c-gente", b(5), b(12));
+tl.from("#gente-caixa", { scale: 0.85, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, b(5));
+const conta = { v: 0 };
+tl.to(conta, { v: 124933451, duration: 1.4, ease: "power3.out", onUpdate: () => { $("#contador").textContent = Math.round(conta.v).toLocaleString("pt-BR"); } }, b(5));
+som("contador.mp3", b(5), 0.55);
+tl.to("#gente-sub", { opacity: 0, duration: 0.12 }, b(8) - 0.12);
+tl.add(() => {}, b(8));
+tl.call(() => {}, null, b(8));
+tl.set("#contador", { textContent: "9 em cada 10" }, b(8));
+tl.set("#gente-sub", { textContent: "pegaram fila", opacity: 1 }, b(8));
+tl.from("#contador", { scale: 1.25, duration: 0.35, ease: "back.out(2)", immediateRender: false }, b(8));
+tl.set("#contador", { color: "#e23a2e" }, b(8));
+som("pop2.mp3", b(8), 0.6);
+som("multidao.mp3", b(8), 0.35);
+
+// ---------------------------------------------------------------- 3. perda: anos (6 a 8 s)
+mostra("#c-anos", b(12), b(16));
+tl.from("#anos-a", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(12));
+const anos = { v: 0 };
+tl.fromTo("#anos-n", { scale: 0.6, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.4, ease: "back.out(1.4)" }, b(12) + 0.2);
+tl.to(anos, { v: 377, duration: 0.9, ease: "power2.out", onUpdate: () => { $("#anos-n").textContent = Math.round(anos.v); } }, b(12) + 0.2);
+som("contador.mp3", b(12) + 0.2, 0.5);
+tl.from("#anos-b", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(14));
+som("whoosh2.mp3", b(16) - 0.15, 0.6);
+
+// ---------------------------------------------------------------- 4. bagunça (8 a 12 s, o bumbo entra)
+mostra("#c-quando", b(16), b(24));
+tl.from("#quando-t", { y: -40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(16));
+["#b1", "#b2", "#b3", "#b4", "#b5"].forEach((id, i) => {
+  tl.fromTo(id, { scale: 0, opacity: 0, rotate: i % 2 ? 6 : -6 }, { scale: 1, opacity: 1, rotate: i % 2 ? -2 : 2, duration: 0.35, ease: "back.out(2.2)" }, b(17 + i));
+  som(i % 2 ? "pop2.mp3" : "pop1.mp3", b(17 + i), 0.55);
+});
+tl.to(["#b1", "#b2", "#b3", "#b4", "#b5"], { opacity: 0.18, scale: 0.92, filter: "blur(6px)", duration: 0.25, stagger: 0.03 }, b(22));
+tl.to("#quando-t", { opacity: 0.18, duration: 0.25 }, b(22));
+tl.fromTo("#ninguem", { opacity: 0, scale: 1.2 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(1.6)" }, b(22));
+som("whoosh1.mp3", b(24) - 0.15, 0.6);
+
+// ---------------------------------------------------------------- 5. clareza (12 a 16 s)
+mostra("#c-urna", b(24), b(31));
+tl.from("#urna-t", { y: 60, opacity: 0, duration: 0.35, ease: "expo.out" }, b(24));
+tl.from("#log", { y: 120, opacity: 0, duration: 0.45, ease: "expo.out" }, b(25));
+const LOG = [
+  ["08:00:04", "Título digitado pela mesa"], ["08:00:19", "Eleitor foi habilitado"], ["08:01:22", "O voto do eleitor foi computado"],
+  ["08:01:25", "Título digitado pela mesa"], ["08:01:41", "Eleitor foi habilitado"], ["08:02:39", "O voto do eleitor foi computado"],
+  ["08:02:44", "Título digitado pela mesa"], ["08:02:58", "Eleitor foi habilitado"], ["08:03:51", "O voto do eleitor foi computado"],
+  ["08:03:55", "Título digitado pela mesa"], ["08:04:12", "Eleitor foi habilitado"], ["08:05:03", "O voto do eleitor foi computado"],
+];
+const linhas = $("#log-linhas");
+LOG.forEach(([h, txt], i) => {
+  const d = document.createElement("div");
+  d.innerHTML = `<span class="h">${h}</span>  ${txt}`;
+  d.style.display = "none"; // escondida não ocupa lugar: as linhas visíveis ficam no fim do cartão
+  linhas.append(d);
+  // cada vez mais rápido: a urna anotando todo mundo
+  const t = b(25.5) + 0.32 * i - 0.012 * i * i;
+  tl.set(d, { display: "block" }, t);
+  tl.from(d, { opacity: 0, x: -20, duration: 0.12, immediateRender: false }, t);
+});
+som("digitar.mp3", b(25.5), 0.35);
+tl.from("#urna-b", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(29));
+mostra("#c-lemos", b(31), b(32));
+tl.fromTo("#carimbo", { scale: 2.4, rotate: -8, opacity: 0 }, { scale: 1, rotate: -3, opacity: 1, duration: 0.22, ease: "power4.in" }, b(31));
+som("pop1.mp3", b(31) + 0.2, 0.8);
+
+// ---------------------------------------------------------------- 6. resposta: o site (16 a 27 s, o drop)
+const CLIPE = { ini: b(32), fim: b(41), de: 0.55, ate: 5.1 }; // trecho do clipe (s) tocado entre ini e fim
+mostra("#c-fone", b(32), b(41) + 0.25);
+flash(b(32));
+tl.fromTo("#fone", { y: 900, rotate: 4 }, { y: 0, rotate: 0, duration: 0.6, ease: "expo.out" }, b(32));
+som("whoosh2.mp3", b(32) - 0.1, 0.8);
+som("digitar.mp3", b(32) + 0.35, 0.5);
+const legendas = [[b(32), "Digite sua seção."], [b(36), "Veja como foi a fila."], [b(38.5), "E a melhor hora do 2º turno."]];
+legendas.forEach(([t, txt], i) => {
+  tl.set("#lf", { textContent: txt }, t);
+  if (i) tl.fromTo("#lf", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: "expo.out", immediateRender: false }, t);
+});
+tl.to("#fone", { scale: 1.75, y: -330, duration: 0.5, ease: "power3.in" }, b(40.5));
+mostra("#c-va", b(41) + 0.25, b(43));
+tl.from("#c-va .t-g", { scale: 0.8, opacity: 0, duration: 0.35, ease: "back.out(1.6)" }, b(41) + 0.25);
+som("whoosh1.mp3", b(41), 0.7);
+
+mostra("#c-sua", b(43), b(46));
+tl.from("#sua-t", { y: 40, opacity: 0, duration: 0.25, ease: "expo.out" }, b(43));
+[["#sua-a", b(43.5)], ["#sua-b", b(44)], ["#sua-c", b(44.5)]].forEach(([id, t], i) => {
+  tl.from(id, { scale: 0.4, opacity: 0, y: 40, duration: 0.3, ease: "back.out(2)" }, t);
+  som(i % 2 ? "pop2.mp3" : "pop1.mp3", t, 0.6);
+});
+
+mostra("#c-zap", b(46), b(48));
+["#n1", "#n2", "#n3"].forEach((id, i) => {
+  const t = b(46) + i * 0.33;
+  tl.from(id, { y: -120, opacity: 0, scale: 0.94, duration: 0.3, ease: "back.out(1.4)" }, t);
+  som("notificacao.mp3", t, 0.7);
+});
+
+mostra("#c-busca", b(48), b(54));
+som("whoosh2.mp3", b(48) - 0.12, 0.6);
+const BUSCAS = [[b(48), "Escola Classe 102 Sul"], [b(49.5), "Pinheiros, São Paulo"], [b(51), "Recife, zona 1, seção 40"]];
+BUSCAS.forEach(([t0, txt]) => {
+  const n = txt.length, dur = 0.55;
+  const o = { i: 0 };
+  tl.fromTo(o, { i: 0 }, { i: n, duration: dur, ease: "none", immediateRender: false, onUpdate: () => { $("#busca-txt").innerHTML = `${txt.slice(0, Math.round(o.i))}<span class="cursor"></span>`; } }, t0);
+  som("digitar.mp3", t0, 0.4);
+});
+tl.to("#busca-sub", { opacity: 0, duration: 0.15 }, b(52.5) - 0.15);
+tl.fromTo("#gratis", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.3, ease: "expo.out" }, b(52.5));
+som("pop2.mp3", b(52.5), 0.6);
+
+// ---------------------------------------------------------------- 7. fecho: a urna (27 a 30 s; a trilha para em b(54))
+const FIM = b(54);
+mostra("#c-fim", FIM, DURACAO + 1);
+const digs = [...document.querySelectorAll("#digitos div")];
+"2510".split("").forEach((d, i) => {
+  const t = FIM + 0.2 + i * 0.3;
+  tl.set(digs[i], { textContent: d, borderColor: "#0a0c0b" }, t);
+  tl.from(digs[i], { scale: 0.86, duration: 0.12, ease: "power2.out", immediateRender: false }, t);
+  som("tecla.wav", t, 1);
+});
+const CONF = FIM + 0.2 + 4 * 0.3 + 0.2;
+tl.to("#digitos", { y: -40, opacity: 0, scale: 0.9, duration: 0.25, ease: "power2.in" }, CONF);
+tl.fromTo("#fim-marca", { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.4, ease: "back.out(1.8)" }, CONF + 0.05);
+tl.fromTo("#fim-tecla", { y: -18, boxShadow: "inset 0 -18px 0 rgba(0,0,0,.2), inset 0 3px 0 rgba(255,255,255,.45), 0 30px 60px -14px rgba(14,122,69,.8)" },
+  { y: 4, boxShadow: "inset 0 -4px 0 rgba(0,0,0,.2), inset 0 3px 0 rgba(255,255,255,.45), 0 6px 14px -8px rgba(14,122,69,.6)", duration: 0.12, ease: "power2.in" }, CONF + 0.25);
+tl.to("#fim-tecla", { y: 0, duration: 0.3, ease: "back.out(3)" }, CONF + 0.37);
+som("confirma.wav", CONF + 0.25, 1);
+tl.to("#fim-data", { opacity: 1, duration: 0.3 }, CONF + 0.3);
+const url = { i: 0 }, U = "horadevotar.com";
+tl.to(url, { i: U.length, duration: 0.6, ease: "none", onUpdate: () => { $("#fim-url").textContent = U.slice(0, Math.round(url.i)); } }, CONF + 0.6);
+
+// ---------------------------------------------------------------- pontos (canvas): cada ponto é gente
+const cv = $("#cv-gente"), ctx = cv.getContext("2d");
+const COLS = 22, ROWS = 40, PASSO = 1080 / COLS, R = 15;
+const semente = (i) => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
+const PONTOS = [];
+for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  const i = r * COLS + c;
+  PONTOS.push({ x: PASSO / 2 + c * PASSO, y: 20 + r * (1920 / ROWS), ent: semente(i), fila: semente(i + 999) < 0.9 });
+}
+const VERM = ["#e23a2e", "#f28a1f", "#eab308"];
+function pontos(t) {
+  ctx.clearRect(0, 0, 1080, 1920);
+  const t0 = b(5), tc = b(8);
+  for (const p of PONTOS) {
+    const a = Math.min(1, Math.max(0, (t - t0 - p.ent * 0.9) / 0.15));
+    if (!a) continue;
+    // na virada (9 em cada 10), a cor corre da esquerda para a direita
+    const virou = t > tc + (p.x / 1080) * 0.35;
+    ctx.globalAlpha = a;
+    ctx.fillStyle = virou ? (p.fila ? VERM[Math.floor(p.ent * 3)] : "#0fa84f") : "#a9c6ee";
+    const r = R * (0.6 + 0.4 * a) * (virou && t < tc + 0.7 ? 1.12 : 1);
+    ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ---------------------------------------------------------------- clipe do site (sequência de quadros)
+const QUADROS = 207, FPS_CLIPE = 30;
+const img = $("#clipe");
+async function clipe(t) {
+  if (t < CLIPE.ini - 0.1 || t > CLIPE.fim + 0.3) return;
+  const u = Math.min(1, Math.max(0, (t - CLIPE.ini) / (CLIPE.fim - CLIPE.ini)));
+  const s = CLIPE.de + u * (CLIPE.ate - CLIPE.de);
+  const f = Math.min(QUADROS - 1, Math.round(s * FPS_CLIPE));
+  const src = `clipes/busca/${String(f).padStart(4, "0")}.png`;
+  if (!img.src.endsWith(src)) { img.src = src; await img.decode().catch(() => {}); }
+}
+
+window.SONS = SONS;
+window.DURACAO = DURACAO;
+window.FIM_TRILHA = FIM;
+window.quadro = async (t) => { tl.seek(t, false); pontos(t); await clipe(t); };
+window.pronto = document.fonts.ready.then(() => true);
+</script>
+</body>
+</html>
