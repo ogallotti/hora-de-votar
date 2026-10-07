@@ -230,7 +230,7 @@ export class Grafico {
     if (this.W === W && this.H === H && this.h0Desenhado === this.h0) return;
     this.W = W; this.H = H; this.h0Desenhado = this.h0;
     const estreito = W < 560;
-    const m = (this.m = { t: 40, r: 6, b: 32, l: 8 });
+    const m = (this.m = { t: 48, r: 6, b: 32, l: 8 }); // em cima: faixa própria para os rótulos (melhor horário, evite)
     this.x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r);
     this.xb = (i) => m.l + (i / N) * (W - m.l - m.r);
     this.y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b);
@@ -284,7 +284,7 @@ export class Grafico {
       const e = this.e[k];
       const cabe = x != null && postos.every((p) => Math.abs(p - x) > 118);
       e.style.opacity = cabe ? 1 : 0;
-      if (x != null) { e.style.left = `${x}px`; e.style.top = `${m.t - 8}px`; }
+      if (x != null) { e.style.left = `${x}px`; e.style.top = `${m.t - 12}px`; }
       if (cabe) postos.push(x);
     }
     this.pontos(agora);
