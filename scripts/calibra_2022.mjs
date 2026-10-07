@@ -1,6 +1,6 @@
 // Calibra e testa a previsão do 2º turno com a amostra de 2022 (1º turno 02/10, 2º turno 30/10/2022).
 // Uso: node scripts/calibra_2022.mjs   (depois de scripts/coleta_2022.py e scripts/calibra_2022.py)
-// Saída: tabela no terminal e .cache/2022/parametros.json, que o build embute em br.json (uf[UF].cal).
+// Saída: tabela no terminal e scripts/calibracao_2022.json (versionado), que o build embute em br.json (uf[UF].cal).
 //
 // Para não medir em cima dos próprios dados, cada seção cai em A (calibra) ou B (testa) por sorteio fixo.
 // Com o 1º turno de 2022, prevê o 2º turno de 2022 e compara com a fila real do 2º turno, nas versões:
@@ -92,4 +92,5 @@ console.log(`\nTempo de urna no 2º turno, real / estimado pelo 1º: ${kt2.um} (
 console.log("UF   comparecimento 2º/1º   governador no 2º (2022)");
 for (const [uf, p] of Object.entries(params)) console.log(`${uf}   ${p.comp.toFixed(3)}                  ${p.gov2 ? "sim" : "não"}`);
 const resultado = Object.fromEntries(Object.entries(res).map(([k, r]) => [k, { erro: +m(r.erro).toFixed(2), vies: +m(r.vies).toFixed(2), perda: +m(r.perda).toFixed(2), acerto: +m(r.acerto).toFixed(3) }]));
-writeFileSync(new URL("parametros.json", PASTA), JSON.stringify({ fonte: "amostra dos dois turnos de 2022", kt2, kme, krho, ufs: params, resultado }));
+// versionado (o build lê daqui; o cache local pode sumir)
+writeFileSync(new URL("calibracao_2022.json", import.meta.url), JSON.stringify({ fonte: "amostra dos dois turnos de 2022", kt2, kme, krho, ufs: params, resultado }));

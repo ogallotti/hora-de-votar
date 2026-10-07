@@ -287,7 +287,8 @@ def calibracao():
     """Calibração do 2º turno medida em 2022 (scripts/calibra_2022.mjs), por UF, ou {} se não houver.
     Usa a versão que errou menos no teste com 2022 (perda no horário recomendado, depois erro médio); se a melhor for
     o algoritmo sem calibração, não calibra. O fator de tempo de urna vem pelo GOV2 de 2026 (1 ou 2 votos)."""
-    arq = CACHE / "2022" / "parametros.json"
+    # versionado (o cache local pode sumir); scripts/calibra_2022.mjs grava aqui
+    arq = ROOT / "scripts" / "calibracao_2022.json"
     if not arq.exists():
         return {}, None
     p = json.loads(arq.read_text())
