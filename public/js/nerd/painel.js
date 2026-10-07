@@ -105,9 +105,16 @@ export function renderMain(el, level, id, ctx) {
   } else {
     frag.push(h('p', { class: 'nivel' }, LEVEL_INFO[level]?.label || ''));
   }
-  frag.push(h('div', { class: 'q' }, h('p', { class: 'q-l' }, 'O que o mapa mostra'), seletor(ctx)));
+  frag.push(h('div', { class: 'q q-met' }, h('p', { class: 'q-l' }, 'O que o mapa mostra'), seletor(ctx)));
   if (v && v[m.k] != null) frag.push(h('div', { class: 'answer' }, h('h2', { class: 'verdict' }, ...m.frase(v[m.k], em)), h('p', { class: 'verdict-s' }, m.desc)));
   else frag.push(h('div', { class: 'answer' }, h('h2', { class: 'verdict' }, `Sem log de urna para ${nome}.`)));
+  if (ctx.modo === 'uf') {
+    // só no celular (no desktop os níveis ficam na barra do mapa)
+    const niv = h('div', { class: 'chips niveis-m', role: 'radiogroup', 'aria-label': 'Nível do mapa' });
+    for (const [k, t] of [['auto', 'Auto'], ['municipio', 'Municípios'], ['bairro', 'Bairros'], ['local', 'Locais'], ['secao', 'Seções']])
+      niv.append(h('button', { type: 'button', role: 'radio', class: 'chip' + (ctx.nivel === k ? ' on' : ''), 'aria-checked': String(ctx.nivel === k), onclick: () => ctx.onNivel(k) }, t));
+    frag.push(h('div', { class: 'niveis-m-caixa' }, h('p', { class: 'q-l' }, 'Ver o mapa por'), niv));
+  }
   if (v) {
     frag.push(h('div', { class: 'stats stats-7' }, ...LINHAS.map(([k, rot, f]) => stat(rot, v[k] != null ? f(v[k]) : '—', referencia(k, f, level), k === m.k)),
       stat('Eleitores', fCompact(v.el), v.ns > 1 ? `em ${fInt(v.ns)} urnas` : 'numa urna só')));

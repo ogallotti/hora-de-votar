@@ -480,3 +480,27 @@ html.m.ml .legend { bottom: var(--gap); }
 html.m .marca { font-size: 14px; }
 html.m .nerd-selo { display: none; }
 html.m .met { grid-template-columns: 1fr 1fr; }
+
+/* barra do mapa: dentro do estado, no desktop, as métricas ficam só no cartão (a barra tem os níveis) */
+body.uf .mapbar > .seg-met { display: none; }
+.niveis-m-caixa { display: none; }
+/* celular: métricas na barra do mapa, gaveta começa pela resposta, níveis em chips no cartão */
+html.m body.uf .mapbar > .seg-met { display: flex; }
+html.m .q-met { display: none; }
+html.m .niveis-m-caixa { display: block; margin-top: 16px; }
+html.m .niveis-m { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+html.m .niveis-m::-webkit-scrollbar { display: none; }
+html.m .niveis-m .chip { flex: none; min-height: 36px; padding: 0 14px; font-size: 13px; }
+html.m .niveis-m-caixa .q-l { margin-bottom: 8px; }
+html.m .top { gap: 8px; }
+html.m .search-btn { flex: none; width: 38px; padding: 0; justify-content: center; margin-left: auto; }
+html.m .search-btn .sb-t { display: none; }
+html.m .uf-pill { max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+html.m .lede { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-bottom: 0; }
+html.m h1.hero { font-size: 27px; margin: 2px 0 8px; }
+html.m .nivel { margin-top: 4px; }
+html.m .eyebrow { font-size: 12px; }
+html.m .stats-7 .stat-v { font-size: 18px; }
+html.m .mapbar .crumbs { margin-top: 0; }
+html.m .legend { bottom: calc(var(--sheet-h, 56%) + 8px); }
+html.m .sheet[data-snap="peek"] .lede { display: none; } /* recolhida: título e resposta; o texto aparece ao abrir */

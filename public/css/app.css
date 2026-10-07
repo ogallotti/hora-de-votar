@@ -387,12 +387,12 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   .compartilha .btn-principal { flex: 1 1 auto; }
 }
 
-/* celular: legenda numa linha e o local logo abaixo, compacto (mais altura para o gráfico) */
+/* celular: legenda numa linha e o local logo abaixo, centralizados e compactos (mais altura para o gráfico) */
 @media (max-width: 560px) {
-  .grafico-topo { gap: 4px; }
-  .legenda { flex-wrap: nowrap; gap: 4px; }
+  .grafico-topo { gap: 4px; flex-direction: column; align-items: center; }
+  .legenda { flex-wrap: nowrap; gap: 4px; justify-content: center; }
   .leg { height: 26px; padding: 0 8px 0 7px; font-size: 12px; gap: 6px; }
   .leg-2 i { width: 16px; }
-  .rotulo-grafico { font-size: 12px; text-align: left; gap: 6px; }
+  .rotulo-grafico { font-size: 12px; text-align: center; justify-content: center; gap: 6px; max-width: 100%; }
   .rotulo-grafico .bandeira { width: 18px; height: 13px; }
 }

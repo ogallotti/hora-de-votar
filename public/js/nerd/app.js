@@ -113,7 +113,8 @@ function legenda() {
 
 // ------------------------------------------------------------------ cartões
 const ctx = () => ({
-  m: metrica(), tab: state.tab, ordem: state.ordem, rankBR: state.rankBR, mais: state.mais,
+  m: metrica(), tab: state.tab, ordem: state.ordem, rankBR: state.rankBR, mais: state.mais, modo: state.modo, nivel: state.mode,
+  onNivel: (md) => { ctl.setMode(md); renderCards(); },
   onMetrica: (k) => ctl.setMetrica(k),
   onTab: (t) => { state.tab = t; state.mais = false; renderCards(); },
   onOrdem: (o) => { state.ordem = o; renderCards(); },
@@ -137,9 +138,12 @@ function renderTop() {
   for (const m of METRICAS) met.append(h('button', { type: 'button', role: 'radio', 'aria-checked': String(state.m === m.k), class: state.m === m.k ? 'on' : '', title: m.desc, onclick: () => ctl.setMetrica(m.k) }, m.curto));
   mb.hidden = false;
   if (state.modo !== 'uf') { mb.append(met); clear(CRUMBS); return; }
+  mb.append(met);
   const niv = h('div', { class: 'seg', role: 'radiogroup', 'aria-label': 'Nível do mapa' });
   for (const [id, t] of [['auto', 'Auto'], ['municipio', 'Municípios'], ['bairro', 'Bairros'], ['local', 'Locais'], ['secao', 'Seções']]) niv.append(h('button', { type: 'button', role: 'radio', 'aria-checked': String(state.mode === id), class: state.mode === id ? 'on' : '', onclick: () => ctl.setMode(id) }, t));
   mb.append(niv, CRUMBS);
+  met.scrollLeft = 0;
+  met.querySelector('.on')?.scrollIntoView?.({ block: 'nearest', inline: 'center' });
 }
 
 // ------------------------------------------------------------------ controle
@@ -190,7 +194,7 @@ const ctl = {
     document.body.classList.remove('uf');
     view.setFocus(null); view.setSelection(null); view.setModo('br');
     loadBRMun().then(() => { view.addLevel('brmun'); pintar(); }).catch(() => {});
-    if (mobile()) setSnap('half');
+    if (mobile()) setSnap('peek');
     pintar(); renderTop(); renderCards(); view.fit('br', 0);
     writeHash();
   },
@@ -249,7 +253,7 @@ function setSnap(s) {
   if (sh.dataset.snap === s) return;
   sh.dataset.snap = s;
   if (s !== 'full') sh.scrollTop = 0;
-  setTimeout(() => { medir(); if (s !== 'full' && view && state.modo === 'uf') view.fit(state.sel.level, state.sel.id, { duration: 400 }); }, 280);
+  setTimeout(() => { medir(); if (s !== 'full' && view) state.modo === 'uf' ? view.fit(state.sel.level, state.sel.id, { duration: 400 }) : view.fit('br', 0, { duration: 400 }); }, 280);
 }
 function alturaPeek() {
   if (!mobile() || UI.ml) return;
