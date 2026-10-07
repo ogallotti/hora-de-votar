@@ -39,6 +39,8 @@ function json(url) {
 
 // ------------------------------------------------------------ leitura da régua: espera e tempo na urna
 let h0 = 8, analise = null, contagem = null;
+// tempo total arredondado como as pessoas falam: "1 min", "3 min", "mais de 30 min"
+const cerca = (s) => (s < 90 ? "cerca de 1 min" : s > 1800 ? "mais de 30 min" : `cerca de ${Math.round(s / 60)} min`);
 const milhoes = (n) => (n >= 1e6 ? `${fmt(n / 1e6)} milhões de` : n >= 1e3 ? `${Math.round(n / 1e3)} mil` : String(Math.round(n)));
 function leitura(i) {
   if (!analise) return;
@@ -47,10 +49,13 @@ function leitura(i) {
   const n = contagem?.[i] ?? 0;
   const quem = n ? ` · ${milhoes(n)} ${n === 1 ? "eleitor votou" : "eleitores votaram"}` : "";
   $("#l-faixa").textContent = (dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento") + quem;
-  $("#w1").textContent = minutos(a.w1[i] || 0);
-  $("#w2").textContent = dentro ? minutos(a.w2[i] || 0) : "urna fechada";
-  $("#u1").textContent = duracao(a.t1);
-  $("#u2").textContent = duracao(a.t2 ?? (a.t1 ? a.t1 * 0.45 : null));
+  // número grande = tempo da chegada à saída (espera + mesa + urna); abaixo, a espera e quantos na frente
+  $("#w1").textContent = cerca(a.total1[i] || 0);
+  $("#e1").textContent = (a.w1[i] || 0) > 1800 ? "fila longa," : minutos(a.w1[i] || 0); // evita "mais de 30 min · mais de 30 min"
+  $("#w2").textContent = dentro ? cerca(a.total2[i] || 0) : "urna fechada";
+  const atendimento = (a.t2 || 0) + (a.me2 || 0);
+  const naFrente = dentro && atendimento ? Math.max(1, Math.round((a.seFila2[i] || 0) / atendimento)) : 0;
+  $("#e2").textContent = !dentro ? "votação encerrada" : (a.o2[i] || 0) < 15 ? "quase sem fila" : `se pegar fila, ~${naFrente} ${naFrente === 1 ? "pessoa" : "pessoas"} na sua frente`;
 }
 
 const grafico = new Grafico($("#grafico"), {
@@ -78,7 +83,7 @@ async function mostraBrasil(modo) {
   const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
   grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, modo);
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
-  $("#rotulo-grafico").textContent = `Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
+  $("#rotulo-grafico").innerHTML = `${bandeira("BR", "Brasil")}Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
   return a;
 }
 function capa(modo = "transforma") {
@@ -92,6 +97,9 @@ function capa(modo = "transforma") {
   $("#extras").hidden = true;
   mostraBrasil(modo).then((a) => grafico.passeia(a.r2.melhor + JANELA / 2, modo === "entrada" ? 1500 : 300)).catch(() => {});
 }
+
+// bandeira do Brasil ou do estado (PNG pequeno em /bandeiras, domínio público via Wikimedia Commons)
+const bandeira = (uf, nome = `Bandeira de ${uf}`) => `<img class="bandeira" src="/bandeiras/${uf.toLowerCase()}.png" alt="${uf === "BR" ? "Bandeira do Brasil" : nome}" width="21" height="15">`;
 
 // ------------------------------------------------------------ seção / local
 const RECENTES = "recentes";
@@ -135,12 +143,12 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   let sub = "";
   const juntas = a.r2.pior2 != null && Math.abs(a.r2.pior2 - a.r2.pior) <= JANELA + 1;
   const ev0 = juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, ev1 = juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA;
-  sub += `Evite ${juntas ? "das " : ""}<span class="tr">${hora(ev0, a.h0)} às ${hora(ev1, a.h0)}</span>. `;
-  sub += a.filaODia
+  sub += `<span class="linha">Evite ${juntas ? "das " : ""}<span class="tr">${hora(ev0, a.h0)} às ${hora(ev1, a.h0)}</span>.</span>`;
+  sub += `<span class="linha">${a.filaODia
     ? `No 1º turno, ${ctx.secao ? "sua seção" : "esse local"} teve fila quase o dia todo: <strong>${r.dez} em cada 10</strong> esperaram.`
-    : `No 1º turno, <strong>${r.dez} em cada 10</strong> eleitores ${quem} pegaram fila.`;
-  if (a.fator) sub += ` No 2º, com ${r.dois ? "dois votos" : "um voto só"}, a fila deve andar <strong>${fmt(a.fator)}× mais rápido</strong>.`;
-  if (a.h0 !== 8) sub += ` Horário local: a votação vai das ${a.h0}h às ${a.h0 + 9}h.`;
+    : `No 1º turno, <strong>${r.dez} em cada 10</strong> eleitores ${quem} pegaram fila.`}</span>`;
+  if (a.fator) sub += `<span class="linha">No 2º, com ${r.dois ? "dois votos" : "um voto só"}, a fila deve andar <strong>${fmt(a.fator)}× mais rápido</strong>.</span>`;
+  if (a.h0 !== 8) sub += `<span class="linha">Horário local: a votação vai das ${a.h0}h às ${a.h0 + 9}h.</span>`;
   if (ctx.nota) sub += `<span class="nota">${esc(ctx.nota)}</span>`;
   $("#sub").innerHTML = sub;
   $("#sub").hidden = false;
@@ -157,7 +165,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
     $("#secoes-rot").textContent = ctx.secao ? "Outras seções deste local" : "Qual a sua seção?";
   } else sec.hidden = true;
 
-  $("#rotulo-grafico").textContent = ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`;
+  $("#rotulo-grafico").innerHTML = bandeira(ctx.mun.uf) + esc(ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`);
   contagem = ctx.d.v;
   grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, primeira ? "entrada" : "transforma");
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
@@ -166,11 +174,10 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
 
   // números
   const media = (w, ini) => w.slice(ini, ini + JANELA).reduce((x, y) => x + y, 0) / JANELA;
-  const pico1 = Math.max(...a.w1.slice(0, OFICIAIS));
   const nums = [];
   if (a.t1 && a.t2) nums.push(["Tempo de cada eleitor na urna", `<span>${duracao(a.t1)}</span><span class="seta">→</span><span class="bom">${duracao(a.t2)}</span>`]);
-  nums.push([`Espera estimada no pico do 1º turno`, `<span>${minutos(pico1)}</span>`]);
-  nums.push([`Espera estimada entre ${r.ini} e ${r.fim} no 2º turno`, `<span class="bom">${minutos(media(a.w2, a.r2.melhor))}</span>`]);
+  nums.push([`Da chegada à saída no pico do 1º turno`, `<span>${cerca(Math.max(...a.total1.slice(0, OFICIAIS)))}</span>`]);
+  nums.push([`Da chegada à saída entre ${r.ini} e ${r.fim} no 2º turno`, `<span class="bom">${cerca(media(a.total2, a.r2.melhor))}</span>`]);
   $("#numeros").innerHTML = nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
   $("#extras").hidden = false;
   contaNumeros();
@@ -234,9 +241,9 @@ $("#baixar").addEventListener("click", async () => {
   x.fillStyle = "#ffffff"; x.fillRect(0, 0, W, H);
   x.textBaseline = "alphabetic";
   const marca = (X, Y, s) => {
-    x.font = `800 ${s}px Unbounded, sans-serif`; x.fillStyle = "#0a0c0b"; x.fillText("hora de", X, Y);
-    const w = x.measureText("hora de ").width, ts = s * 0.78;
-    x.font = `800 ${ts}px Unbounded, sans-serif`;
+    x.font = `800 ${s}px Archivo, sans-serif`; x.fillStyle = "#0a0c0b"; x.fillText("HORA DE", X, Y);
+    const w = x.measureText("HORA DE ").width, ts = s * 0.9;
+    x.font = `800 ${ts}px Archivo, sans-serif`;
     const tw = x.measureText("VOTAR").width + ts * 1.1, th = ts * 1.75, tx = X + w, ty = Y - s * 0.95;
     x.fillStyle = "#24924f"; x.beginPath(); x.roundRect(tx, ty + 5, tw, th, 14); x.fill();
     x.fillStyle = "#2fb36a"; x.beginPath(); x.roundRect(tx, ty, tw, th - 4, 14); x.fill();
@@ -253,10 +260,14 @@ $("#baixar").addEventListener("click", async () => {
   r.lugar.forEach((t, i) => { let s = t; while (x.measureText(s).width > W - 180 && s.length > 4) s = s.slice(0, -2); x.fillText(s === t ? s : `${s.trim()}…`, 90, 790 + i * 56); });
   const gx = 90, gy = 1060, gw = W - 180, gh = 460, N = OFICIAIS, L = 20;
   const px = (i) => gx + ((i + 0.5) / N) * gw, py = (j) => gy + gh - (j + 0.5) * (gh / L), xb = (i) => gx + (i / N) * gw;
-  const pintaFaixa = (ini, fim, cor, borda) => { x.fillStyle = cor; x.strokeStyle = borda; x.lineWidth = 3; x.beginPath(); x.roundRect(xb(ini), gy - 14, xb(fim) - xb(ini), gh + 22, 18); x.fill(); x.stroke(); };
+  const pintaFaixa = (ini, fim, rgb, forca) => { // gradiente horizontal: transparente nas laterais, forte no centro
+    const g = x.createLinearGradient(xb(ini), 0, xb(fim), 0);
+    g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${forca})`); g.addColorStop(1, `rgba(${rgb},0)`);
+    x.fillStyle = g; x.fillRect(xb(ini), gy - 14, xb(fim) - xb(ini), gh + 22);
+  };
   const juntas = a.r2.pior2 != null && Math.abs(a.r2.pior2 - a.r2.pior) <= JANELA + 1;
-  pintaFaixa(juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA, "rgba(217,72,59,.08)", "rgba(217,72,59,.35)");
-  pintaFaixa(a.r2.melhor, a.r2.melhor + JANELA, "rgba(14,122,69,.1)", "rgba(14,122,69,.5)");
+  pintaFaixa(juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA, "217,72,59", 0.15);
+  pintaFaixa(a.r2.melhor, a.r2.melhor + JANELA, "14,122,69", 0.2);
   const rr = Math.min(gw / N, gh / L) * 0.3;
   for (let i = 0; i < N; i++) {
     const k1 = Math.round(a.o1[i] / 5), k2 = Math.round((a.o2[i] || 0) / 5);
@@ -299,6 +310,37 @@ function rotaDaUrl() {
 }
 window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = rotaDaUrl(); r ? abre(r, { empurra: false }) : capa(); });
 
+// ------------------------------------------------------------ pessoas no site agora
+// Sinal de presença a cada 30 s enquanto a aba está visível; o código da aba é aleatório e não identifica ninguém.
+(function aoVivo() {
+  let id;
+  try { id = sessionStorage.getItem("aba"); } catch { /* sem armazenamento */ }
+  if (!id) { id = (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`); try { sessionStorage.setItem("aba", id); } catch { /* ignora */ } }
+  let mostrado = 0, t;
+  const mostra = (n) => {
+    const el = $("#contador");
+    if (n == null) { el.hidden = true; return; }
+    el.hidden = false;
+    $("#n-rot").textContent = n === 1 ? "pessoa no site agora" : "pessoas no site agora";
+    const de = mostrado, t0 = performance.now();
+    mostrado = n;
+    const passo = (agora) => {
+      const k = reduz() ? 1 : Math.min(1, (agora - t0) / 700);
+      $("#n-agora").textContent = Math.round(de + (n - de) * (1 - (1 - k) ** 3)).toLocaleString("pt-BR");
+      if (k < 1) requestAnimationFrame(passo);
+    };
+    requestAnimationFrame(passo);
+  };
+  const bate = () => {
+    if (document.visibilityState !== "visible") return;
+    fetch("/api/ao-vivo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
+      .then((r) => (r.ok ? r.json() : { agora: null })).then((d) => mostra(d.agora)).catch(() => mostra(null));
+  };
+  bate();
+  t = setInterval(bate, 30000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") bate(); });
+})();
+
 // ------------------------------------------------------------ início
 let busca = null, municipios = [];
 const ufGeo = { uf: null };
@@ -307,7 +349,7 @@ json("/data/municipios.json").then((ms) => {
   municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
   busca = criaBusca({
     json, municipios, ufGeo: () => ufGeo.uf,
-    input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), perto: $("#perto"), confirma: $("#confirma"),
+    input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), confirma: $("#confirma"),
     aoEscolher: (rota) => abre(rota, { gesto: true }), recentes,
   });
   if (atual) busca.defineCidade(municipios.find((m) => m.cd === atual.ctx.mun.cd) || null);

@@ -1,7 +1,7 @@
 // Busca universal: uma barra que entende cidade, local de votação, bairro, endereço e zona/seção, juntos ou não.
-// "102 sul brasília", "pinheiros sp", "recife zona 1 seção 20", "z5 s120", "5/120", "rua augusta".
+// "102 sul brasília", "pinheiros sp", "recife zona 1 seção 40", "z5 s120", "5/120", "410 undb".
 const UFS = new Set("ac al am ap ba ce df es go ma mg ms mt pa pb pe pi pr rj rn ro rr rs sc se sp to".split(" "));
-const MAX = { cidade: 4, local: 7, bairro: 3, secao: 6, perto: 6 };
+const MAX = { cidade: 4, local: 7, bairro: 3, secao: 6 };
 
 export const norm = (s) => (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const palavras = (s) => norm(s).split(" ").filter(Boolean);
@@ -45,14 +45,8 @@ export function destaca(texto, toks) {
   }).join("");
 }
 
-function distancia([a1, b1], [a2, b2]) {
-  const r = Math.PI / 180, dA = (a2 - a1) * r, dB = (b2 - b1) * r;
-  const h = Math.sin(dA / 2) ** 2 + Math.cos(a1 * r) * Math.cos(a2 * r) * Math.sin(dB / 2) ** 2;
-  return 12742 * Math.asin(Math.sqrt(h)); // km
-}
-const km = (d) => (d < 1 ? `${Math.round(d * 100) * 10} m` : `${d.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km`);
 
-export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, perto, confirma, aoEscolher, recentes }) {
+export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, confirma, aoEscolher, recentes }) {
   const porCodigo = new Map(municipios.map((m) => [m.cd, m]));
   const porPrimeira = new Map();
   for (const m of municipios) {
@@ -62,7 +56,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
     porPrimeira.get(k).push(m);
   }
   let cidade = null;      // contexto escolhido (chip)
-  let itens = [], ativo = -1, seq = 0, pertoDe = null;
+  let itens = [], ativo = -1, seq = 0;
 
   // ------------------------------------------------------------ fontes
   const locaisDaCidade = async (cd) => {
@@ -260,7 +254,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
       const { toks } = interpreta(q);
       pinta(gs, aviso || (cidade || toks.length > 1
         ? `Nada encontrado. Tente o nome da escola, o bairro ou <b>zona e seção</b> (ex.: zona 5 seção 120).`
-        : `Digite também a cidade, ou toque em <b>Perto de mim</b>.`));
+        : `Digite também a cidade.`));
     } catch {
       if (n === seq) pinta([], "Não conseguimos carregar os dados agora. Tente de novo em instantes.");
     }
@@ -300,23 +294,5 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, per
   document.addEventListener("pointerdown", (e) => { if (!e.target.closest(".busca")) abre(false); });
   confirma.addEventListener("click", () => escolhe(itens[ativo]));
 
-  perto.addEventListener("click", () => {
-    if (!navigator.geolocation) return pinta([], "Seu navegador não informa a localização. Digite a cidade.");
-    perto.classList.add("carregando");
-    navigator.geolocation.getCurrentPosition(async (p) => {
-      const eu = [p.coords.latitude, p.coords.longitude];
-      const muns = municipios.filter((m) => m.g).map((m) => [distancia(eu, m.g), m]).sort((a, b) => a[0] - b[0]).slice(0, 4).map(([, m]) => m);
-      const cands = [];
-      for (const m of muns) {
-        const d = await locaisDaCidade(m.cd).catch(() => null);
-        for (const l of d?.locais || []) if (l.g && l.ns) cands.push([distancia(eu, l.g), l, m]);
-      }
-      cands.sort((a, b) => a[0] - b[0]);
-      perto.classList.remove("carregando");
-      pertoDe = eu;
-      pinta(cands.length ? [{ rot: "Perto de você", itens: cands.slice(0, MAX.perto).map(([dk, l, m]) => ({ tipo: "local", cd: m.cd, lid: l.id, t: l.n, d: [l.b, `${m.nome}, ${m.uf}`].filter(Boolean).join(" · "), x: km(dk), ic: "pin", toks: [] })) }] : [], "Não achamos locais de votação perto de você.");
-    }, () => { perto.classList.remove("carregando"); pinta([], "Sem acesso à localização. Digite a cidade ou o nome da escola."); }, { enableHighAccuracy: false, timeout: 9000, maximumAge: 600000 });
-  });
-
-  return { defineCidade, foca: () => input.focus(), busca, get pertoDe() { return pertoDe; } };
+  return { defineCidade, foca: () => input.focus(), busca };
 }

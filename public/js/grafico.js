@@ -65,6 +65,14 @@ export class Grafico {
     a.appendChild(this.cv);
     this.ctx = this.cv.getContext("2d");
     const svg = (this.svg = el("svg", { "aria-hidden": "true" }, a));
+    // faixas: gradiente horizontal, transparente nas laterais e forte no centro
+    const defs = el("defs", {}, svg);
+    for (const [id, cor, forca] of [["grad-melhor", "#0e7a45", 0.2], ["grad-pior", "#d9483b", 0.15]]) {
+      const g = el("linearGradient", { id, x1: 0, y1: 0, x2: 1, y2: 0 }, defs);
+      el("stop", { offset: 0, "stop-color": cor, "stop-opacity": 0 }, g);
+      el("stop", { offset: 0.5, "stop-color": cor, "stop-opacity": forca }, g);
+      el("stop", { offset: 1, "stop-color": cor, "stop-opacity": 0 }, g);
+    }
     this.n = {
       grade: el("g", {}, svg),
       encerrado: el("rect", { class: "g-encerrado" }, svg),
@@ -202,7 +210,7 @@ export class Grafico {
     if (this.W === W && this.H === H && this.h0Desenhado === this.h0) return;
     this.W = W; this.H = H; this.h0Desenhado = this.h0;
     const estreito = W < 560;
-    const m = (this.m = { t: 40, r: 6, b: 32, l: estreito ? 30 : 38 });
+    const m = (this.m = { t: 40, r: 6, b: 32, l: 8 });
     this.x = (i) => m.l + ((i + 0.5) / N) * (W - m.l - m.r);
     this.xb = (i) => m.l + (i / N) * (W - m.l - m.r);
     this.y = (v) => m.t + (1 - v / 100) * (H - m.t - m.b);
@@ -221,10 +229,7 @@ export class Grafico {
     const svg = this.svg, n = this.n;
     svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
     n.grade.innerHTML = ""; n.eixo.innerHTML = "";
-    for (const v of [0, 50, 100]) {
-      el("line", { class: v ? "g-grade" : "g-base", x1: m.l, x2: W - m.r, y1: this.y(v) + (v ? 0 : 2), y2: this.y(v) + (v ? 0 : 2) }, n.grade);
-      el("text", { class: "g-eixo", x: m.l - 8, y: this.y(v) + 4, "text-anchor": "end" }, n.eixo).textContent = v ? `${v}%` : "0";
-    }
+    el("line", { class: "g-base", x1: m.l, x2: W - m.r, y1: this.y(0) + 2, y2: this.y(0) + 2 }, n.grade); // só a base: a altura é a fila, sem escala
     const passo = (estreito ? 120 : 60) / FAIXA_MIN; // rótulo a cada 1 h (2 h no celular)
     for (let i = 0; i <= OFICIAIS; i += passo) {
       el("text", { class: "g-eixo", x: this.xb(i), y: H - 8, "text-anchor": i === 0 ? "start" : "middle" }, n.eixo).textContent = hora(i, this.h0);
@@ -233,7 +238,7 @@ export class Grafico {
     Object.entries({ x: x0, y: m.t - 6, width: W - m.r - x0, height: H - m.t - m.b + 8 }).forEach(([k, v]) => n.encerrado.setAttribute(k, v));
     n.encRot.setAttribute("x", (x0 + W - m.r) / 2);
     n.encRot.setAttribute("y", m.t - 12);
-    n.encRot.textContent = W - m.r - x0 > 50 ? "encerrou" : "";
+    n.encRot.textContent = W - m.r - x0 > 56 ? "encerrada" : "";
   }
 
   desenha(_mexeu, agora = performance.now()) {

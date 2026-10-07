@@ -38,7 +38,7 @@ await p.screenshot({ path: "tests/shots/resultado-chip.png" });
 // régua por teclado
 await p.focus("#grafico");
 for (let k = 0; k < 6; k++) await p.keyboard.press("ArrowLeft");
-console.log("régua:", await p.textContent("#l-hora"), "1º", await p.textContent("#w1"), "2º", await p.textContent("#w2"));
+console.log("régua:", await p.textContent("#l-hora"), "1º", await p.textContent("#w1"), "2º", await p.textContent("#w2"), "/", await p.textContent("#e2"));
 const dl = p.waitForEvent("download", { timeout: 8000 }).catch(() => null);
 await p.click("#baixar");
 const d = await dl;

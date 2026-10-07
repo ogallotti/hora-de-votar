@@ -192,7 +192,12 @@ export function analisa(d, h0 = 8, perfil = null, cal = null) {
   const cheio1 = o1.slice(0, OFICIAIS).filter((x) => x >= 75).length; // faixas em que 3 de 4 pegaram fila
   return {
     h0, o1, o2, w1, w2, r1, r2,
-    t1: d.t1, t2: Math.round(t2), me: d.me, n: d.n,
+    t1: d.t1, t2: Math.round(t2), me: d.me, me2: Math.round(me2), n: d.n,
+    // tempo total na seção, da chegada à saída: espera média + mesa + urna (o que a pessoa sente)
+    total1: w1.map((w) => w + (d.t1 || 0) + me),
+    total2: w2.map((w) => w + t2 + me2),
+    // espera de quem pega fila (a média acima inclui quem chega e é chamado na hora)
+    seFila2: w2.map((w, i) => (o2[i] > 0 ? w / (o2[i] / 100) : 0)),
     fator: d.t1 ? (d.t1 + me) / (t2 + me2) : null,
     horasFila1: (cheio1 * FAIXA_MIN) / 60,
     media1: o1.slice(0, OFICIAIS).reduce((x, y) => x + y, 0) / OFICIAIS, // % média com fila no 1º turno
