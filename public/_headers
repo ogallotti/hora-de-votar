@@ -21,3 +21,8 @@
 # MapLibre (página /nerd): troca de versão = troca de arquivo
 /vendor/*
   Cache-Control: public, max-age=604800
+# HTML: no-transform impede a borda de injetar scripts (Web Analytics automático), que a CSP bloquearia
+/
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+/nerd
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
