@@ -31,10 +31,18 @@ await p.waitForSelector("#extras:not([hidden])");
 await p.waitForTimeout(2600);
 console.log("abriu:", await p.textContent("#titulo"), "|", p.url());
 await p.screenshot({ path: "tests/shots/resultado-local.png" });
-await p.click(".chip >> nth=2");
+await busca("zona 1 seção 3");
+await p.keyboard.press("Enter");
 await p.waitForTimeout(2200);
-console.log("chip:", await p.textContent("#titulo"), "|", p.url());
-await p.screenshot({ path: "tests/shots/resultado-chip.png" });
+console.log("seção:", await p.textContent("#titulo"), "|", p.url(), "|", await p.textContent("#rotulo-grafico"));
+await p.screenshot({ path: "tests/shots/resultado-secao.png" });
+// mouse fora do gráfico: a régua volta para o melhor horário
+await p.hover("#grafico", { position: { x: 60, y: 120 } });
+await p.waitForTimeout(300);
+const antes = await p.textContent("#l-hora");
+await p.mouse.move(5, 5);
+await p.waitForTimeout(1000);
+console.log("régua volta:", antes, "→", await p.textContent("#l-hora"), "| título:", await p.textContent("#titulo"));
 // régua por teclado
 await p.focus("#grafico");
 for (let k = 0; k < 6; k++) await p.keyboard.press("ArrowLeft");

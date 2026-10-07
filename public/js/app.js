@@ -51,7 +51,8 @@ function leitura(i) {
   $("#l-faixa").textContent = (dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento") + quem;
   // número grande = tempo da chegada à saída (espera + mesa + urna); abaixo, a espera e quantos na frente
   $("#w1").textContent = cerca(a.total1[i] || 0);
-  $("#e1").textContent = (a.w1[i] || 0) > 1800 ? "fila longa," : minutos(a.w1[i] || 0); // evita "mais de 30 min · mais de 30 min"
+  const e1 = a.w1[i] || 0;
+  $("#s1").innerHTML = e1 > 1800 ? "da chegada à saída · fila muito longa" : `da chegada à saída · <b>${minutos(e1)}</b> de espera estimada`;
   $("#w2").textContent = dentro ? cerca(a.total2[i] || 0) : "urna fechada";
   const atendimento = (a.t2 || 0) + (a.me2 || 0);
   const naFrente = dentro && atendimento ? Math.max(1, Math.round((a.seFila2[i] || 0) / atendimento)) : 0;
@@ -89,11 +90,9 @@ async function mostraBrasil(modo) {
 function capa(modo = "transforma") {
   document.body.classList.remove("resultado");
   document.title = "Hora de votar · a melhor hora para votar no 2º turno";
-  $("#onde").hidden = true;
   $("#titulo").innerHTML = 'Qual a melhor hora para votar no <span class="nw">2º turno?</span>';
   $("#sub").hidden = true;
   $("#dica-busca").hidden = false;
-  $("#secoes").hidden = true;
   $("#extras").hidden = true;
   mostraBrasil(modo).then((a) => grafico.passeia(a.r2.melhor + JANELA / 2, modo === "entrada" ? 1500 : 300)).catch(() => {});
 }
@@ -135,9 +134,6 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   const { a } = r;
   h0 = a.h0;
   analise = a;
-  const onde = $("#onde");
-  onde.hidden = false;
-  onde.innerHTML = r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join('<span class="sep">/</span>');
   $("#titulo").innerHTML = `Vá entre <em>${r.ini} e ${r.fim}</em>`;
   const quem = ctx.secao ? "da sua seção" : "desse local";
   let sub = "";
@@ -152,35 +148,26 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   if (ctx.nota) sub += `<span class="nota">${esc(ctx.nota)}</span>`;
   $("#sub").innerHTML = sub;
   $("#sub").hidden = false;
-  for (const s of ["#onde", "#titulo", "#sub"]) { const e = $(s); e.classList.remove("troca"); void e.offsetWidth; e.classList.add("troca"); }
+  for (const s of ["#titulo", "#sub"]) { const e = $(s); e.classList.remove("troca"); void e.offsetWidth; e.classList.add("troca"); }
   $("#dica-busca").hidden = true;
 
-  // seções do local
-  const l = ctx.local;
-  const sec = $("#secoes");
-  if (l && l.s.length > 1) {
-    sec.hidden = false;
-    $("#chips").innerHTML = l.s.map((s) => `<button type="button" class="chip" data-s="${s}" aria-pressed="${s === ctx.secao}">${s}</button>`).join("") +
-      `<button type="button" class="chip chip-todas" data-s="" aria-pressed="${!ctx.secao}">Todas</button>`;
-    $("#secoes-rot").textContent = ctx.secao ? "Outras seções deste local" : "Qual a sua seção?";
-  } else sec.hidden = true;
-
-  $("#rotulo-grafico").innerHTML = bandeira(ctx.mun.uf) + esc(ctx.secao ? `Zona ${ctx.z}, seção ${ctx.secao} · ${ctx.d.n} eleitores` : `${l.n} · ${ctx.d.ns} seções`);
+  // onde: uma vez só, em cima do gráfico (escola, seção, cidade), com a bandeira do estado
+  $("#rotulo-grafico").innerHTML = bandeira(ctx.mun.uf) + `<span>${r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join(" · ")}</span>`;
   contagem = ctx.d.v;
   grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, primeira ? "entrada" : "transforma");
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
   grafico.passeia(a.r2.melhor + JANELA / 2, primeira ? 1600 : 900);
   primeira = false;
 
-  // números
+  // comparação: do momento em que chega até sair da seção, pior hora do 1º turno × melhor hora do 2º
   const media = (w, ini) => w.slice(ini, ini + JANELA).reduce((x, y) => x + y, 0) / JANELA;
-  const nums = [];
-  if (a.t1 && a.t2) nums.push(["Tempo de cada eleitor na urna", `<span>${duracao(a.t1)}</span><span class="seta">→</span><span class="bom">${duracao(a.t2)}</span>`]);
-  nums.push([`Da chegada à saída no pico do 1º turno`, `<span>${cerca(Math.max(...a.total1.slice(0, OFICIAIS)))}</span>`]);
-  nums.push([`Da chegada à saída entre ${r.ini} e ${r.fim} no 2º turno`, `<span class="bom">${cerca(media(a.total2, a.r2.melhor))}</span>`]);
-  $("#numeros").innerHTML = nums.map(([t, v]) => `<div><dt>${t}</dt><dd>${v}</dd></div>`).join("");
+  const urna = a.t1 && a.t2 ? `<p class="compara-nota">Cada eleitor levou <b>${duracao(a.t1)}</b> na urna no 1º turno. No 2º, com ${r.dois ? "dois votos" : "um voto só"}, deve levar <b>${duracao(a.t2)}</b>.</p>` : "";
+  $("#compara").innerHTML = `<p class="compara-rot">Do momento em que você chega até sair da seção</p>
+    <div class="compara-grade">
+      <div><span class="c-rot">1º turno, das ${hora(a.r1.pior, a.h0)} às ${hora(a.r1.pior + JANELA, a.h0)} (pior horário)</span><strong>${cerca(media(a.total1, a.r1.pior))}</strong></div>
+      <div class="c-2"><span class="c-rot">2º turno, das ${r.ini} às ${r.fim} (melhor horário)</span><strong>${cerca(media(a.total2, a.r2.melhor))}</strong></div>
+    </div>${urna}`;
   $("#extras").hidden = false;
-  contaNumeros();
 
   // tabela
   const linhas = [];
@@ -197,27 +184,6 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   $("#tg").href = `https://t.me/share/url?url=${encodeURIComponent(url)}&text=${encodeURIComponent(r.texto)}`;
   if (gesto) $("#palco-grafico").scrollIntoView({ behavior: reduz() ? "auto" : "smooth", block: "center" });
 }
-
-function contaNumeros() {
-  for (const e of document.querySelectorAll("[data-conta]")) {
-    const alvo = +e.dataset.conta, casas = +e.dataset.casas;
-    if (reduz()) continue;
-    const t0 = performance.now();
-    const passo = (t) => {
-      const k = Math.min(1, (t - t0) / 900), v = alvo * (1 - (1 - k) ** 3);
-      e.textContent = casas ? fmt(v, casas) : Math.round(v).toLocaleString("pt-BR");
-      if (k < 1) requestAnimationFrame(passo);
-    };
-    requestAnimationFrame(passo);
-  }
-}
-
-$("#chips").addEventListener("click", (e) => {
-  const b = e.target.closest(".chip");
-  if (!b || !atual) return;
-  const { ctx } = atual;
-  abre(b.dataset.s ? { tipo: "s", cd: ctx.mun.cd, z: ctx.local.z, s: +b.dataset.s } : { tipo: "l", cd: ctx.mun.cd, lid: ctx.local.id }, { gesto: true });
-});
 
 // ------------------------------------------------------------ compartilhar
 function aviso(t) { const a = $("#aviso"); a.textContent = t; clearTimeout(aviso.t); aviso.t = setTimeout(() => { a.textContent = ""; }, 2600); }

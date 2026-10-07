@@ -190,7 +190,8 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .leg i { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin: 0 2px; }
 .leg-1 i { background: #cdd2cf; width: 7px; height: 7px; }
 .leg-2 i { background: var(--verde); box-shadow: 0 0 0 3px rgb(63 210 131 / .22); }
-.rotulo-grafico { margin: 0; font-size: 13.5px; color: var(--tinta-3); display: inline-flex; align-items: center; gap: 8px; }
+.rotulo-grafico { margin: 0; font-size: 13.5px; color: var(--tinta-3); display: inline-flex; align-items: center; gap: 8px; text-align: right; }
+.rotulo-grafico b { color: var(--tinta); font-weight: 600; }
 .bandeira { width: 21px; height: 15px; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px rgb(10 12 11 / .08); flex-shrink: 0; }
 
 .grafico { position: relative; height: clamp(280px, 44vh, 480px); touch-action: pan-y; cursor: crosshair; user-select: none; -webkit-user-select: none; }
@@ -207,8 +208,8 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .g-r1-linha { fill: none; stroke: var(--r1); stroke-width: 1.5; }
 .g-r2-area { fill: url(#grad-r2); }
 .g-r2-linha { fill: none; stroke: var(--verde); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.g-melhor { fill: url(#grad-melhor); }
-.g-pior { fill: url(#grad-pior); }
+.g-melhor { fill: var(--verde); }
+.g-pior { fill: #d9483b; opacity: .85; }
 .g-pico { fill: var(--laranja); stroke: var(--fundo); stroke-width: 2.5; }
 .g-mira { stroke: var(--tinta); stroke-width: 1; stroke-opacity: .5; }
 .g-k1 { fill: var(--fundo); stroke: var(--r1); stroke-width: 2.5; }
@@ -271,7 +272,7 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .arraste.some { opacity: 0; }
 
 /* ------------------------------------------------------------ ao vivo + anunciantes */
-.ao-vivo { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: stretch; gap: 12px; max-width: 980px; margin: 28px auto 0; }
+.ao-vivo { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: stretch; gap: 12px; margin: 22px 0 0; }
 .contador {
   margin: 0; display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-radius: 20px; background: var(--fundo-2);
   font-size: 14.5px; color: var(--tinta-2); white-space: nowrap;
@@ -301,6 +302,19 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   .anuncio { grid-template-columns: 1fr; row-gap: 2px; }
   .anuncio-cta { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 10px; }
 }
+
+/* comparação 1º × 2º turno, da chegada à saída */
+.compara { margin: 0 0 28px; padding: 22px 24px; border-radius: 20px; border: 1px solid var(--linha); text-align: center; }
+.compara-rot { margin: 0 0 14px; font-size: 14.5px; font-weight: 600; color: var(--tinta-2); }
+.compara-grade { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.compara-grade > div { display: flex; flex-direction: column; gap: 4px; padding: 16px; border-radius: 16px; background: var(--fundo-2); }
+.compara-grade strong { font-size: 34px; font-weight: 650; letter-spacing: -.04em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.compara-grade .c-2 { background: rgb(14 122 69 / .07); }
+.compara-grade .c-2 strong { color: var(--verde-texto); }
+.c-rot { font-size: 13.5px; color: var(--tinta-3); }
+.compara-nota { margin: 14px 0 0; font-size: 14px; color: var(--tinta-3); }
+.compara-nota b { color: var(--tinta-2); font-weight: 600; }
+@media (max-width: 640px) { .compara-grade { grid-template-columns: 1fr; } .compara-grade strong { font-size: 28px; } .compara { padding: 18px; } }
 
 /* ------------------------------------------------------------ resultado */
 .extras { max-width: 980px; margin: 40px auto 0; }
@@ -365,8 +379,6 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   body.resultado .palco { display: flex; flex-direction: column; }
   body.resultado .cabeca { order: 0; padding-bottom: 8px; }
   body.resultado .palco-grafico { order: 1; margin-top: 18px; }
-  body.resultado .ao-vivo { order: 1; }
-  body.resultado .secoes { order: 2; }
   body.resultado .extras { order: 3; }
   body.resultado .busca { order: 4; width: 100%; margin-top: 36px; }
   .secoes { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; width: 100%; min-width: 0; }

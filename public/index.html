@@ -41,7 +41,6 @@
 
 <main class="palco">
   <section class="cabeca" id="cabeca" aria-live="polite">
-    <p class="onde" id="onde" hidden></p>
     <h1 id="titulo">Qual a melhor hora para votar no <span class="nw">2º turno?</span></h1>
     <p class="sub" id="sub" hidden></p>
   </section>
@@ -59,10 +58,6 @@
     <p class="dica-busca" id="dica-busca">Tente <button type="button" data-q="102 sul brasília">102 sul brasília</button>, <button type="button" data-q="pinheiros são paulo">pinheiros são paulo</button> ou <button type="button" data-q="recife zona 1 seção 40">recife zona 1 seção 40</button></p>
   </div>
 
-  <div class="secoes" id="secoes" hidden>
-    <span class="secoes-rot" id="secoes-rot">Qual a sua seção?</span>
-    <div class="chips" id="chips" role="group" aria-labelledby="secoes-rot"></div>
-  </div>
 
   <figure class="palco-grafico" id="palco-grafico">
     <div class="grafico-topo">
@@ -73,13 +68,22 @@
       <p class="rotulo-grafico" id="rotulo-grafico">Brasil · todas as urnas</p>
     </div>
     <div class="grafico" id="grafico"></div>
+    <div class="ao-vivo" id="ao-vivo">
+      <p class="contador" id="contador" hidden aria-live="off"><i class="pulso" aria-hidden="true"></i><b id="n-agora">0</b><span id="n-rot">pessoas no site agora</span></p>
+      <a class="anuncio" id="anuncio" href="mailto:anuncie@horadevotar.com?subject=Quero%20anunciar%20no%20Hora%20de%20votar">
+        <span class="anuncio-rot">Espaço para anunciantes</span>
+        <strong>Anuncie aqui</strong>
+        <span class="anuncio-txt">Fale com milhões de eleitores às vésperas do 2º turno.</span>
+        <span class="anuncio-cta">Quero anunciar</span>
+      </a>
+    </div>
     <div class="fim" id="fim" aria-hidden="true">FIM</div>
     <figcaption class="leitura" id="leitura">
       <div class="leitura-hora"><span id="l-hora">10h</span><small id="l-faixa">às 10h15</small></div>
       <div class="leitura-turno">
         <span class="lt-rot">1º turno</span>
         <span class="lt-num" id="w1">18 min</span>
-        <span class="lt-sub">da chegada à saída · <b id="e1">17 min</b> de espera estimada</span>
+        <span class="lt-sub" id="s1">da chegada à saída · 17 min de espera estimada</span>
       </div>
       <div class="leitura-turno t2">
         <span class="lt-rot lt-rot-2">2º turno</span>
@@ -90,18 +94,9 @@
     <p class="arraste" id="arraste">Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.</p>
   </figure>
 
-  <section class="ao-vivo" id="ao-vivo">
-    <p class="contador" id="contador" hidden aria-live="off"><i class="pulso" aria-hidden="true"></i><b id="n-agora">0</b><span id="n-rot">pessoas no site agora</span></p>
-    <a class="anuncio" id="anuncio" href="mailto:anuncie@horadevotar.com?subject=Quero%20anunciar%20no%20Hora%20de%20votar">
-      <span class="anuncio-rot">Espaço para anunciantes</span>
-      <strong>Anuncie aqui</strong>
-      <span class="anuncio-txt">Fale com milhões de eleitores às vésperas do 2º turno.</span>
-      <span class="anuncio-cta">Quero anunciar</span>
-    </a>
-  </section>
 
   <section class="extras" id="extras" hidden>
-    <dl class="numeros" id="numeros"></dl>
+    <div class="compara" id="compara"></div>
     <div class="compartilha">
       <button type="button" class="btn btn-principal" id="compartilhar"><svg class="ic" aria-hidden="true"><use href="#i-compartilhar"/></svg>Compartilhar</button>
       <a class="btn btn-marca btn-zap" id="zap" target="_blank" rel="noopener"><svg class="ic" aria-hidden="true"><use href="#i-zap"/></svg>WhatsApp</a>

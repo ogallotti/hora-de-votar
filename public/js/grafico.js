@@ -8,7 +8,7 @@ import { hora, OFICIAIS, FAIXA_MIN, JANELA } from "./modelo.js";
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
 const LINHAS = 20;      // 20 pontos por coluna: cada um = 5%
-const COR = { r1: "#cdd2cf", r1Forte: "#8d958f", verde: "#0e7a45", brilho: "#3fd283" };
+const COR = { r1: "#cdd2cf", r1Forte: "#8d958f", verde: "#0e7a45", aceso: "#12a95a", brilho: "#3fd283", evite: "#d9483b" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const easeOut = (t) => 1 - (1 - t) ** 3;
@@ -97,6 +97,8 @@ export class Grafico {
     const solta = () => { arrastando = false; };
     a.addEventListener("pointerup", solta);
     a.addEventListener("pointercancel", solta);
+    a.addEventListener("pointerleave", (ev) => { if (ev.pointerType === "mouse" && !arrastando) this.volta(); });
+    document.addEventListener("pointerdown", (ev) => { if (!a.contains(ev.target)) this.volta(); });
     a.addEventListener("keydown", (ev) => {
       const d = { ArrowRight: 1, ArrowLeft: -1, ArrowUp: 1, ArrowDown: -1, PageUp: JANELA, PageDown: -JANELA }[ev.key];
       if (d == null && ev.key !== "Home" && ev.key !== "End") return;
@@ -174,6 +176,21 @@ export class Grafico {
     this.piscas = this.piscas.filter((p) => agora - p.t0 < 900).slice(-40);
   }
 
+  /** Régua de volta ao melhor horário (o que importa), deslizando a partir de onde está. */
+  volta() {
+    const alvo = Math.round(this.cur.melhor) + JANELA / 2;
+    if (this.i == null || this.i === alvo) return;
+    cancelAnimationFrame(this.passeio);
+    if (reduz()) { this.vai(alvo, false); return; }
+    const de = this.i, t0 = performance.now(), dur = 650;
+    const passo = (agora) => {
+      const t = Math.min(1, (agora - t0) / dur);
+      this.vai(Math.round(de + (alvo - de) * easeIO(t)), false);
+      if (t < 1) this.passeio = requestAnimationFrame(passo);
+    };
+    this.passeio = requestAnimationFrame(passo);
+  }
+
   vai(i, avisa = true) {
     const antes = this.i;
     this.i = i;
@@ -224,6 +241,11 @@ export class Grafico {
       r1Forte: sprite(raio * 0.85, COR.r1Forte, 0, dpr),
       verde: sprite(raio, COR.verde, raio * 1.4, dpr),
       verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
+      // melhor horário: pontos acesos o tempo todo; evite: vermelhos
+      aceso: sprite(raio * 1.12, COR.aceso, raio * 2.8, dpr),
+      acesoForte: sprite(raio * 1.3, COR.aceso, raio * 3.2, dpr),
+      evite: sprite(raio, COR.evite, raio * 1.2, dpr),
+      eviteForte: sprite(raio * 1.2, COR.evite, raio * 1.5, dpr),
       brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
     };
     const svg = this.svg, n = this.n;
@@ -247,13 +269,16 @@ export class Grafico {
     const banda = (r, ini, fim = ini + JANELA) => {
       if (ini == null) { r.setAttribute("width", 0); return null; }
       const b0 = this.xb(ini), b1 = this.xb(fim);
-      Object.entries({ x: b0 + 1, y: m.t - 8, width: Math.max(0, b1 - b0 - 2), height: H - m.t - m.b + 10 }).forEach(([k, v]) => r.setAttribute(k, v));
+      Object.entries({ x: b0 + 2, y: H - m.b + 5, width: Math.max(0, b1 - b0 - 4), height: 4, rx: 2 }).forEach(([k, v]) => r.setAttribute(k, v));
       return (b0 + b1) / 2;
     };
     // faixas: melhor (verde) e evite (avermelhada; as duas piores horas encostadas viram uma só); rótulos que colidem somem
     const juntas = c.pior != null && c.pior2 != null && Math.abs(c.pior2 - c.pior) <= JANELA + 1;
     const pIni = juntas ? Math.min(c.pior, c.pior2) : c.pior, pFim = juntas ? Math.max(c.pior, c.pior2) + JANELA : c.pior + JANELA;
     const faixas = [["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)], ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)]];
+    const mi = Math.round(c.melhor);
+    this.faixasCor = { melhor: [mi, mi + JANELA], pior: c.pior == null ? null : [Math.round(pIni), Math.round(pFim)],
+      pior2: !juntas && c.pior2 != null ? [Math.round(c.pior2), Math.round(c.pior2) + JANELA] : null };
     const postos = [];
     for (const [k, x] of faixas) {
       const e = this.e[k];
@@ -278,15 +303,19 @@ export class Grafico {
       const w = img.width * esc, h = img.height * esc;
       ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
     };
+    const fx = this.faixasCor || {};
+    const dentro = (f, i) => f && i >= f[0] && i < f[1];
     for (let i = 0; i < N; i++) {
       const x = this.x(i) * dpr, foco = i === this.i;
+      const aceso = dentro(fx.melhor, i), evita = dentro(fx.pior, i) || dentro(fx.pior2, i);
+      const v = aceso ? (foco ? sp.acesoForte : sp.aceso) : evita ? (foco ? sp.eviteForte : sp.evite) : foco ? sp.verdeForte : sp.verde;
       const k1 = this.mostra.r1 ? (c.o1[i] / 100) * LINHAS : 0;
       const k2 = this.mostra.r2 && i < OFICIAIS ? (c.o2[i] / 100) * LINHAS : 0;
       for (let j = 0; j < LINHAS; j++) {
         const y = yRow(j);
         const a2 = Math.max(0, Math.min(1, k2 - j)), a1 = Math.max(0, Math.min(1, k1 - j));
         if (a1 > 0 && a2 < 1) poe(foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2) + (a2 ? 0 : 0));
-        if (a2 > 0) poe(foco ? sp.verdeForte : sp.verde, x, y, a2);
+        if (a2 > 0) poe(v, x, y, a2);
       }
     }
     for (const p of this.piscas) {
