@@ -3,12 +3,6 @@ pages_build_output_dir = "public"
 compatibility_date = "2026-09-01"
 compatibility_flags = ["nodejs_compat"]
 
-# contador "pessoas no site agora" (workers/ao-vivo): Durable Object de outro worker, usado por functions/api/ao-vivo.js
-[[durable_objects.bindings]]
-name = "PRESENCA"
-class_name = "Presenca"
-script_name = "hora-de-votar-ao-vivo"
-
 # métricas de uso próprias (sem cookie, sem terceiros): functions/api/m.js grava, functions/painel lê pela API SQL
 [[analytics_engine_datasets]]
 binding = "METRICAS"

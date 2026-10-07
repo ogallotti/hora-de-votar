@@ -291,34 +291,35 @@ window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, {
 
 // ------------------------------------------------------------ pessoas no site agora
 // Sinal de presença a cada 30 s enquanto a aba está visível; o código da aba é aleatório e não identifica ninguém.
-(function aoVivo() {
-  let id;
-  try { id = sessionStorage.getItem("aba"); } catch { /* sem armazenamento */ }
-  if (!id) { id = (crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`); try { sessionStorage.setItem("aba", id); } catch { /* ignora */ } }
-  let mostrado = 0, t;
-  const mostra = (n) => {
-    const el = $("#contador");
-    if (n == null) { el.hidden = true; return; }
-    el.hidden = false;
+(function totalVisitas() {
+  // Visitas acumuladas: o número real vem de /api/total (atualizado a cada poucos minutos, no cache da borda); entre uma
+  // atualização e outra, sobe em saltos de intervalo aleatório no ritmo REAL da última hora (projeção, não invenção).
+  const el = $("#contador"), num = $("#n-agora");
+  let mostrado = 0, base = 0, ritmo = 0, desde = 0;
+  const anima = (n) => {
     const de = mostrado, t0 = performance.now();
     mostrado = n;
     const passo = (agora) => {
-      const k = reduz() ? 1 : Math.min(1, (agora - t0) / 700);
-      $("#n-agora").textContent = Math.round(de + (n - de) * (1 - (1 - k) ** 3)).toLocaleString("pt-BR");
+      const k = reduz() ? 1 : Math.min(1, (agora - t0) / 900);
+      num.textContent = Math.round(de + (n - de) * (1 - (1 - k) ** 3)).toLocaleString("pt-BR");
       if (k < 1) requestAnimationFrame(passo);
     };
     requestAnimationFrame(passo);
   };
-  // economia (plano gratuito da Cloudflare): 1º sinal só depois de 10 s na página, depois a cada 90 s, até 15 min
-  const inicio = Date.now();
-  const bate = () => {
-    if (document.visibilityState !== "visible" || Date.now() - inicio > 15 * 60000) return;
-    fetch("/api/ao-vivo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
-      .then((r) => (r.ok ? r.json() : { agora: null })).then((d) => mostra(d.agora)).catch(() => mostra(null));
+  // projeção limitada a 30 min: se a página ficar aberta muito tempo, não inventa além do que o ritmo sustenta
+  const agora = () => Math.round(base + ritmo * Math.min(1800, (performance.now() - desde) / 1000));
+  const sobe = () => {
+    const n = agora();
+    if (n > mostrado) anima(n);
+    setTimeout(sobe, 1500 + Math.random() * 3500);
   };
-  setTimeout(bate, 10000);
-  t = setInterval(bate, 90000);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - inicio > 10000) bate(); });
+  const busca = () => fetch("/api/total").then((r) => (r.ok ? r.json() : null)).then((d) => {
+    if (!d?.total) return;
+    base = Math.max(d.total, mostrado); ritmo = Math.max(0, +d.ritmo || 0); desde = performance.now();
+    if (el.hidden) { el.hidden = false; mostrado = Math.round(base * 0.97); anima(base); setTimeout(sobe, 2500); }
+  }).catch(() => {});
+  busca();
+  setInterval(() => { if (document.visibilityState === "visible") busca(); }, 5 * 60000);
 })();
 
 // ------------------------------------------------------------ anúncios: dois slides que se alternam

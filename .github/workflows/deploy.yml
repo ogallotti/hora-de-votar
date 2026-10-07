@@ -37,14 +37,17 @@ jobs:
           cache: pnpm
       # functions/ (prévia de links e imagem por seção) usa @cf-wasm/og; o wrangler empacota junto
       - run: pnpm install --frozen-lockfile
-      # 1º o worker do contador "online" (Durable Objects), porque o site depende do binding dele
-      - name: Worker do contador (workers/ao-vivo)
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        run: pnpm exec wrangler deploy --config workers/ao-vivo/wrangler.toml
       - name: Publicar public/ e functions/ no Cloudflare Pages
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler pages deploy public --project-name=hora-de-votar --branch=main
+      # páginas de seção/local e o total de visitas ficam no cache da borda (regra de cache da zona): limpa a cada deploy,
+      # só esses caminhos (as imagens de prévia já desenhadas ficam; mudam de URL quando VERSAO_IMG muda)
+      - name: Limpar o cache da borda
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          Z=a21d43ba5a845a17455775c61635093a
+          purga() { curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/$Z/purge_cache" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" -H "Content-Type: application/json" --data "$1"; }
+          purga '{"prefixes":["horadevotar.com/s/","horadevotar.com/l/","horadevotar.com/api/total"]}' || purga '{"purge_everything":true}'

@@ -264,12 +264,13 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 /* ------------------------------------------------------------ online (barra de cima) e anúncios */
 .online { margin: 0; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--tinta-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .online b { color: var(--tinta-2); font-weight: 600; }
-.pulso { position: relative; width: 7px; height: 7px; border-radius: 999px; background: #e5484d; flex-shrink: 0; }
+.pulso { position: relative; width: 7px; height: 7px; border-radius: 999px; background: var(--tecla); flex-shrink: 0; }
 @media (prefers-reduced-motion: no-preference) {
-  .pulso::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; background: #e5484d; opacity: .3; animation: pulso 2s ease-out infinite; }
+  .pulso::after { content: ""; position: absolute; inset: -4px; border-radius: inherit; background: var(--tecla); opacity: .3; animation: pulso 2s ease-out infinite; }
 }
 @keyframes pulso { from { transform: scale(.4); opacity: .45; } to { transform: scale(1.5); opacity: 0; } }
-@media (max-width: 420px) { .online span { display: none; } }
+@media (max-width: 400px) { .online .pulso { display: none; } }
+@media (max-width: 360px) { .online span { display: none; } } /* só em tela muito estreita o rótulo sai */
 
 .anuncios { position: relative; margin: 8px auto 0; max-width: 760px; border-radius: 14px; border: 1px dashed var(--linha-2); overflow: hidden; }
 .anuncios-trilho { display: flex; transition: transform .7s var(--suave); }
