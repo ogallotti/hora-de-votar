@@ -29,7 +29,7 @@ function json(url) {
   const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
   const dias = Math.round((SEGUNDO_TURNO - hoje) / 864e5);
   const el = $("#contagem");
-  if (dias > 1) el.innerHTML = `faltam <strong>${dias} dias</strong> · 25/10`;
+  if (dias > 1) el.innerHTML = `<span class="cd-extra">faltam </span><strong>${dias} dias</strong><span class="cd-extra"> · 25/10</span>`;
   else if (dias === 1) el.innerHTML = "2º turno é <strong>amanhã</strong>";
   else if (dias === 0) el.innerHTML = "<strong>Hoje é dia de votar</strong>";
   else el.textContent = "Eleições 2026";
@@ -87,7 +87,7 @@ async function mostraBrasil(modo) {
   const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
   grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, modo);
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
-  $("#rotulo-grafico").innerHTML = `${bandeira("BR", "Brasil")}Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
+  $("#rotulo-grafico").innerHTML = `${bandeira("BR", "Brasil")}<span><b>Média do Brasil</b> · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília</span>`;
   return a;
 }
 function capa(modo = "transforma") {
@@ -282,7 +282,6 @@ window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = ro
     const el = $("#contador");
     if (n == null) { el.hidden = true; return; }
     el.hidden = false;
-    $("#n-rot").textContent = n === 1 ? "pessoa no site agora" : "pessoas no site agora";
     const de = mostrado, t0 = performance.now();
     mostrado = n;
     const passo = (agora) => {
@@ -300,6 +299,27 @@ window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = ro
   bate();
   t = setInterval(bate, 30000);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") bate(); });
+})();
+
+// ------------------------------------------------------------ anúncios: dois slides que se alternam
+(function anuncios() {
+  const trilho = $("#anuncios-trilho"), pontos = [...document.querySelectorAll("#anuncios-pontos button")];
+  if (!trilho) return;
+  let i = 0, pausa = false;
+  const vai = (k) => {
+    i = (k + pontos.length) % pontos.length;
+    trilho.style.transform = `translateX(${-100 * i}%)`;
+    pontos.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
+    [...trilho.children].forEach((a, j) => { a.tabIndex = j === i ? 0 : -1; a.setAttribute("aria-hidden", String(j !== i)); });
+  };
+  pontos.forEach((b, j) => b.addEventListener("click", () => vai(j)));
+  const caixa = $("#anuncios");
+  caixa.addEventListener("pointerenter", () => { pausa = true; });
+  caixa.addEventListener("pointerleave", () => { pausa = false; });
+  caixa.addEventListener("focusin", () => { pausa = true; });
+  caixa.addEventListener("focusout", () => { pausa = false; });
+  setInterval(() => { if (!pausa && document.visibilityState === "visible") vai(i + 1); }, 7000);
+  vai(0);
 })();
 
 // ------------------------------------------------------------ início
