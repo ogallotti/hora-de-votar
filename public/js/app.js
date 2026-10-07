@@ -1,5 +1,6 @@
 import { analisa, hora, duracao, minutos, OFICIAIS, JANELA, FAIXA_MIN } from "./modelo.js";
 import { Grafico, FAIXAS_GRAFICO } from "./grafico.js";
+import { cor, notas } from "./cores.js";
 import { resolve, resumo, caminhoDe } from "./dados.js";
 import { criaBusca } from "./busca.js";
 
@@ -82,7 +83,7 @@ async function mostraBrasil(modo) {
   contagem = br.v;
   const total = br.v.reduce((x, y) => x + y, 0);
   const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
-  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, modo);
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, modo);
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
   $("#rotulo-grafico").innerHTML = `${bandeira("BR", "Brasil")}Brasil · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília`;
   return a;
@@ -154,7 +155,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   // onde: uma vez só, em cima do gráfico (escola, seção, cidade), com a bandeira do estado
   $("#rotulo-grafico").innerHTML = bandeira(ctx.mun.uf) + `<span>${r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join(" · ")}</span>`;
   contagem = ctx.d.v;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2 }, primeira ? "entrada" : "transforma");
+  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, primeira ? "entrada" : "transforma");
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
   grafico.passeia(a.r2.melhor + JANELA / 2, primeira ? 1600 : 900);
   primeira = false;
@@ -226,22 +227,14 @@ $("#baixar").addEventListener("click", async () => {
   r.lugar.forEach((t, i) => { let s = t; while (x.measureText(s).width > W - 180 && s.length > 4) s = s.slice(0, -2); x.fillText(s === t ? s : `${s.trim()}…`, 90, 790 + i * 56); });
   const gx = 90, gy = 1060, gw = W - 180, gh = 460, N = OFICIAIS, L = 20;
   const px = (i) => gx + ((i + 0.5) / N) * gw, py = (j) => gy + gh - (j + 0.5) * (gh / L), xb = (i) => gx + (i / N) * gw;
-  const pintaFaixa = (ini, fim, rgb, forca) => { // gradiente horizontal: transparente nas laterais, forte no centro
-    const g = x.createLinearGradient(xb(ini), 0, xb(fim), 0);
-    g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(0.5, `rgba(${rgb},${forca})`); g.addColorStop(1, `rgba(${rgb},0)`);
-    x.fillStyle = g; x.fillRect(xb(ini), gy - 14, xb(fim) - xb(ini), gh + 22);
-  };
-  const juntas = a.r2.pior2 != null && Math.abs(a.r2.pior2 - a.r2.pior) <= JANELA + 1;
-  pintaFaixa(juntas ? Math.min(a.r2.pior, a.r2.pior2) : a.r2.pior, juntas ? Math.max(a.r2.pior, a.r2.pior2) + JANELA : a.r2.pior + JANELA, "217,72,59", 0.15);
-  pintaFaixa(a.r2.melhor, a.r2.melhor + JANELA, "14,122,69", 0.2);
+  const nt = notas(a.o2, a.r2); // cor de cada coluna: vermelho (pior) → cinza → verde (melhor)
   const rr = Math.min(gw / N, gh / L) * 0.3;
   for (let i = 0; i < N; i++) {
     const k1 = Math.round(a.o1[i] / 5), k2 = Math.round((a.o2[i] || 0) / 5);
     for (let j = 0; j < L; j++) {
       const verde = j < k2, cinza = j < k1;
-      if (verde) { x.fillStyle = "rgba(63,210,131,.25)"; x.beginPath(); x.arc(px(i), py(j), rr * 2, 0, 7); x.fill(); }
       if (!verde && !cinza) continue; // sem ponto onde ninguém esperou
-      x.fillStyle = verde ? "#0e7a45" : "#cdd2cf";
+      x.fillStyle = verde ? cor(nt[i]) : "#cdd2cf";
       x.beginPath(); x.arc(px(i), py(j), verde ? rr : rr * 0.7, 0, 7); x.fill();
     }
   }
@@ -250,7 +243,8 @@ $("#baixar").addEventListener("click", async () => {
   x.textAlign = "left";
   x.fillStyle = "#cdd2cf"; x.beginPath(); x.arc(110, 1624, 9, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.font = "500 32px Geist, sans-serif"; x.fillText(`${r.dez} de 10 pegaram fila no 1º turno`, 146, 1634);
-  x.fillStyle = "#0e7a45"; x.beginPath(); x.arc(110, 1676, 12, 0, 7); x.fill();
+  const lg = x.createLinearGradient(92, 0, 132, 0); lg.addColorStop(0, "#e23a2e"); lg.addColorStop(0.5, "#a3aba6"); lg.addColorStop(1, "#0fa84f");
+  x.fillStyle = lg; x.beginPath(); x.roundRect(90, 1668, 42, 16, 8); x.fill();
   x.fillStyle = "#474e4a"; x.fillText(a.fator ? `2º turno: fila ${fmt(a.fator)}× mais rápida` : "2º turno, estimativa", 146, 1688);
   x.fillStyle = "#0a0c0b"; x.font = "600 44px Geist, sans-serif"; x.fillText("Veja o da sua seção em", 90, 1792);
   x.fillStyle = "#0e7a45"; x.font = "700 62px Geist, sans-serif"; x.fillText(SITE, 90, 1862);

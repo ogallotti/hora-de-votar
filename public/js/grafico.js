@@ -4,6 +4,7 @@
 // Um só gráfico na página: os dados mudam (Brasil → local → seção) e os pontos se rearrumam.
 // Régua: arraste, toque ou setas do teclado; avisa quem está ouvindo (aoMover) a cada faixa.
 import { hora, OFICIAIS, FAIXA_MIN, JANELA } from "./modelo.js";
+import { cor, notas } from "./cores.js";
 
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
@@ -115,6 +116,8 @@ export class Grafico {
   define(dados, modo = "transforma") {
     this.h0 = dados.h0 ?? 8;
     const alvo = { o1: ajusta(dados.o1), o2: ajusta(dados.o2), v: ajusta(dados.v), melhor: dados.melhor ?? 0, pior: dados.pior ?? null, pior2: dados.pior2 ?? null };
+    this.notas = dados.notas || notas(alvo.o2);
+    this.spCol = null; // as cores das colunas mudam com os dados
     this.piscas = [];
     if (reduz() || modo === "direto") { this.cur = alvo; this.tween = null; this.desenha(); this.liga(); return; }
     const de = modo === "entrada" ? { ...alvo, o1: ajusta(), o2: ajusta() } : structuredClone(this.cur);
@@ -241,11 +244,6 @@ export class Grafico {
       r1Forte: sprite(raio * 0.85, COR.r1Forte, 0, dpr),
       verde: sprite(raio, COR.verde, raio * 1.4, dpr),
       verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
-      // melhor horário: pontos acesos o tempo todo; evite: vermelhos
-      aceso: sprite(raio * 1.12, COR.aceso, raio * 2.8, dpr),
-      acesoForte: sprite(raio * 1.3, COR.aceso, raio * 3.2, dpr),
-      evite: sprite(raio, COR.evite, raio * 1.2, dpr),
-      eviteForte: sprite(raio * 1.2, COR.evite, raio * 1.5, dpr),
       brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
     };
     const svg = this.svg, n = this.n;
@@ -276,9 +274,7 @@ export class Grafico {
     const juntas = c.pior != null && c.pior2 != null && Math.abs(c.pior2 - c.pior) <= JANELA + 1;
     const pIni = juntas ? Math.min(c.pior, c.pior2) : c.pior, pFim = juntas ? Math.max(c.pior, c.pior2) + JANELA : c.pior + JANELA;
     const faixas = [["melhor", banda(n.melhor, c.melhor)], ["pior", banda(n.pior, pIni, pFim)], ["pior2", juntas ? banda(n.pior2, null) : banda(n.pior2, c.pior2)]];
-    const mi = Math.round(c.melhor);
-    this.faixasCor = { melhor: [mi, mi + JANELA], pior: c.pior == null ? null : [Math.round(pIni), Math.round(pFim)],
-      pior2: !juntas && c.pior2 != null ? [Math.round(c.pior2), Math.round(c.pior2) + JANELA] : null };
+
     const postos = [];
     for (const [k, x] of faixas) {
       const e = this.e[k];
@@ -291,9 +287,26 @@ export class Grafico {
     this.desenhaMira();
   }
 
+  /** Um sprite por coluna do 2º turno, na cor da sua nota: extremos com brilho, meio sem. */
+  spritesColunas() {
+    if (this.spCol && this.spColRaio === this.raio) return this.spCol;
+    const r = this.raio, dpr = this.dpr;
+    this.spCol = (this.notas || []).map((t) => {
+      const c = cor(t), extremo = Math.abs(t - 0.5) * 2; // 0 no meio, 1 nos extremos
+      return {
+        n: sprite(r * (1 + 0.12 * extremo), c, r * 2.6 * extremo, dpr, extremo > 0.6 ? "55" : "30"),
+        f: sprite(r * (1.25 + 0.1 * extremo), c, r * (1.2 + 2 * extremo), dpr, "55"),
+        b: sprite(r * 1.2, c, r * 4, dpr, "88"),
+      };
+    });
+    this.spColRaio = r;
+    return this.spCol;
+  }
+
   pontos(agora = performance.now()) {
     const { ctx, sp, dpr, m, H } = this, c = this.cur;
     if (!sp) return;
+    const col = this.spritesColunas();
     ctx.clearRect(0, 0, this.cv.width, this.cv.height);
     const passoY = (H - m.t - m.b) / LINHAS;
     const yRow = (j) => (H - m.b - (j + 0.5) * passoY) * dpr;
@@ -303,12 +316,9 @@ export class Grafico {
       const w = img.width * esc, h = img.height * esc;
       ctx.drawImage(img, x - w / 2, y - h / 2, w, h);
     };
-    const fx = this.faixasCor || {};
-    const dentro = (f, i) => f && i >= f[0] && i < f[1];
     for (let i = 0; i < N; i++) {
       const x = this.x(i) * dpr, foco = i === this.i;
-      const aceso = dentro(fx.melhor, i), evita = dentro(fx.pior, i) || dentro(fx.pior2, i);
-      const v = aceso ? (foco ? sp.acesoForte : sp.aceso) : evita ? (foco ? sp.eviteForte : sp.evite) : foco ? sp.verdeForte : sp.verde;
+      const v = col[i] ? (foco ? col[i].f : col[i].n) : foco ? sp.verdeForte : sp.verde;
       const k1 = this.mostra.r1 ? (c.o1[i] / 100) * LINHAS : 0;
       const k2 = this.mostra.r2 && i < OFICIAIS ? (c.o2[i] / 100) * LINHAS : 0;
       for (let j = 0; j < LINHAS; j++) {
@@ -321,7 +331,7 @@ export class Grafico {
     for (const p of this.piscas) {
       const t = (agora - p.t0) / 900, k = Math.sin(Math.PI * t);
       const verde = this.mostra.r2 && p.i < OFICIAIS && p.j < (c.o2[p.i] / 100) * LINHAS;
-      poe(verde ? sp.brilho : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde ? k : k * 0.8, 1 + 0.35 * k);
+      poe(verde ? (col[p.i]?.b || sp.brilho) : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde ? k : k * 0.8, 1 + 0.35 * k);
     }
     ctx.globalAlpha = 1;
   }
