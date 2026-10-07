@@ -8,3 +8,11 @@ compatibility_flags = ["nodejs_compat"]
 name = "PRESENCA"
 class_name = "Presenca"
 script_name = "hora-de-votar-ao-vivo"
+
+# métricas de uso próprias (sem cookie, sem terceiros): functions/api/m.js grava, functions/painel lê pela API SQL
+[[analytics_engine_datasets]]
+binding = "METRICAS"
+dataset = "hora_de_votar"
+
+[vars]
+CF_CONTA = "b386f4f4a383527bac0d68851f038e7a" # conta da Cloudflare (não é segredo); o token de leitura e a senha do painel são segredos

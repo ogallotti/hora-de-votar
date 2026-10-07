@@ -1,6 +1,7 @@
 // Controlador da página /nerd: Brasil ↔ estado, métrica, nível, recorte, carga sob demanda, endereço compartilhável,
 // teclado e gaveta do celular. Adaptado de quem-vota-em-quem (js/main.js). Zero backend: só arquivos estáticos.
 import { abrirBusca, buscaAberta, fecharBusca, iconeBusca } from './busca.js';
+import { evento } from '../metricas.js';
 import { BR, D, focusGeometry, getProps, loadBR, loadBRMun, loadMunPolys, loadNomes, loadUF, loadZB, munOf, parentChain, unidadesNoRecorte } from './dados.js';
 import { METRICA, METRICAS, RAMPA, SEM_DADO, classes, rotuloMapa, valorDe } from './estat.js';
 import { clear, h } from './fmt.js';
@@ -171,6 +172,7 @@ const ctl = {
     if (!BR.ufs.get(uf.toUpperCase())) return;
     fecharBusca();
     const trocou = state.uf !== uf;
+    if (trocou) evento('nerd', { acao: 'estado', valor: uf });
     if (trocou) {
       toast(`Abrindo ${BR.ufs.get(uf.toUpperCase()).n}…`, 0);
       await loadUF(uf);
@@ -215,8 +217,8 @@ const ctl = {
     if (mobile()) setSnap('peek');
     writeHash();
   },
-  setMetrica(k) { if (!METRICA[k]) return; state.m = k; pintar(); renderTop(); renderCards(); writeHash(); },
-  setMode(md) { state.mode = md; view.setMode(md); if (md === 'local' || md === 'secao') carregarPolys(view.municipiosVisiveis()); renderTop(); },
+  setMetrica(k) { if (!METRICA[k]) return; if (k !== state.m) evento('nerd', { acao: 'metrica', valor: k }); state.m = k; pintar(); renderTop(); renderCards(); writeHash(); },
+  setMode(md) { evento('nerd', { acao: 'nivel', valor: md }); state.mode = md; view.setMode(md); if (md === 'local' || md === 'secao') carregarPolys(view.municipiosVisiveis()); renderTop(); },
 };
 window.__ctl = ctl;
 

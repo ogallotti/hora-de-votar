@@ -135,7 +135,8 @@ export function renderMain(el, level, id, ctx) {
       h('p', null, h('b', null, 'Pegou fila: '), 'o eleitor foi chamado logo depois de o anterior sair (a urna não ficou esperando ninguém chegar).'),
       h('p', null, h('b', null, 'Comparecimento: '), 'eleitores no log sobre os aptos da seção, só nas seções com log e cadastro coerente.'),
       h('p', null, h('b', null, 'Municípios e estados: '), 'medianas de todos os eleitores. ', h('b', null, 'Regiões, zonas, bairros e locais: '), 'medianas das seções, pesadas pelos eleitores. Horários em hora de Brasília.'),
-      h('p', { class: 'muted' }, 'Zonas, bairros, locais e seções são áreas aproximadas em volta dos locais de votação (malhas do IBGE e coordenadas do TSE).'))));
+      h('p', { class: 'muted' }, 'Zonas, bairros, locais e seções são áreas aproximadas em volta dos locais de votação (malhas do IBGE e coordenadas do TSE).'),
+      h('p', { class: 'muted' }, h('a', { href: '/privacidade' }, 'Privacidade'), ' · ', h('a', { href: '/termos' }, 'Termos de Uso'), ' · sem cookies e sem rastreadores.'))));
   clear(el).append(...frag);
 }
 

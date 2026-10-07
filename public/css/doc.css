@@ -1,0 +1,20 @@
+/* Páginas de texto (privacidade, termos), sobre os tokens de app.css. */
+.doc { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 32px 20px 24px; }
+.doc-voltar { text-decoration: none; color: var(--tinta-2); font-weight: 560; }
+.doc-selo { display: inline-block; margin: 0 0 14px; padding: 5px 12px; border-radius: 999px; background: var(--fundo-3); color: var(--tinta-2); font-size: 12.5px; font-weight: 600; }
+.doc h1 { margin: 0 0 14px; font-size: clamp(32px, 6vw, 48px); line-height: 1.05; letter-spacing: -.045em; font-weight: 680; }
+.doc-lede { margin: 0 0 24px; font-size: 18px; line-height: 1.6; color: var(--tinta-2); }
+.doc h2 { margin: 40px 0 10px; padding-top: 18px; border-top: 1px solid var(--linha); font-size: 22px; letter-spacing: -.03em; font-weight: 650; scroll-margin-top: 16px; }
+.doc h3 { margin: 22px 0 6px; font-size: 17px; font-weight: 640; }
+.doc p, .doc li { font-size: 16px; line-height: 1.65; color: var(--tinta-2); }
+.doc p { margin: 0 0 12px; }
+.doc ul { margin: 0 0 12px; padding-left: 22px; }
+.doc li { margin-bottom: 6px; }
+.doc b { color: var(--tinta); font-weight: 600; }
+.doc a { color: var(--verde-texto); text-underline-offset: 3px; }
+.doc code { font-size: 14px; padding: 1px 6px; border-radius: 6px; background: var(--fundo-2); }
+.doc-indice { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
+.doc-indice a { padding: 6px 12px; border-radius: 999px; border: 1px solid var(--linha-2); color: var(--tinta-2); text-decoration: none; font-size: 13.5px; }
+.doc-indice a:hover { color: var(--tinta); border-color: var(--tinta-3); }
+.doc-fim { margin-top: 36px !important; }
+.rodape a { color: inherit; text-underline-offset: 3px; }

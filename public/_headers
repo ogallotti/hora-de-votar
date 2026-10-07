@@ -26,3 +26,7 @@
   Cache-Control: public, max-age=0, must-revalidate, no-transform
 /nerd
   Cache-Control: public, max-age=0, must-revalidate, no-transform
+/privacidade
+  Cache-Control: public, max-age=0, must-revalidate, no-transform
+/termos
+  Cache-Control: public, max-age=0, must-revalidate, no-transform

@@ -3,6 +3,7 @@ import { Grafico, FAIXAS_GRAFICO } from "./grafico.js";
 import { cor, notas } from "./cores.js";
 import { resolve, resumo, caminhoDe } from "./dados.js";
 import { criaBusca } from "./busca.js";
+import { evento } from "./metricas.js";
 
 const $ = (s) => document.querySelector(s);
 const SEGUNDO_TURNO = new Date(2026, 9, 25);
@@ -75,9 +76,12 @@ const grafico = new Grafico($("#grafico"), {
   aoMover: (i) => leitura(i),
   aoEntrarMelhor: () => { try { navigator.vibrate?.(8); } catch { /* sem vibração */ } },
 });
+$("#grafico").addEventListener("pointerdown", () => evento("grafico", { acao: "arrasta" }), { once: true });
+$("#grafico").addEventListener("keydown", () => evento("grafico", { acao: "teclado" }), { once: true });
 $(".legenda").addEventListener("click", (e) => {
   const b = e.target.closest(".leg");
   if (!b) return;
+  evento("grafico", { acao: `serie${b.dataset.serie}` });
   const outro = $(`.leg[data-serie="${b.dataset.serie === "1" ? 2 : 1}"]`);
   const liga = b.getAttribute("aria-pressed") !== "true";
   if (!liga && outro.getAttribute("aria-pressed") !== "true") return; // sempre sobra uma
@@ -126,7 +130,7 @@ function guardaRecente(ctx) {
 }
 
 let atual = null;
-async function abre(rota, { gesto = false, empurra = true } = {}) {
+async function abre(rota, { gesto = false, empurra = true, como = gesto ? "busca" : "link" } = {}) {
   let ctx;
   try { ctx = await resolve(json, rota); } catch {
     $("#sub").innerHTML = "Não encontramos essa seção. Confira a zona e a seção no título de eleitor ou no app e-Título.";
@@ -134,6 +138,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   }
   const r = resumo(ctx);
   atual = { ctx, r };
+  evento("abre", { tipo: rota.tipo, uf: ctx.mun.uf, cd: String(ctx.mun.cd), como });
   document.body.classList.add("resultado");
   const caminho = caminhoDe(ctx);
   if (empurra && location.pathname !== caminho) history.pushState({ rota }, "", caminho);
@@ -202,17 +207,21 @@ function aviso(t) { const a = $("#aviso"); a.textContent = t; clearTimeout(aviso
 async function copia(url) {
   try { await navigator.clipboard.writeText(url); aviso("Link copiado. É só colar."); } catch { aviso(url); }
 }
-$("#copiar").addEventListener("click", () => copia(location.href));
+const tipoAtual = () => atual?.ctx.secao ? "s" : "l";
+$("#copiar").addEventListener("click", () => { evento("compartilha", { canal: "copiar", tipo: tipoAtual() }); copia(location.href); });
+for (const [id, canal] of [["#zap", "whatsapp"], ["#xis", "x"], ["#tg", "telegram"]]) $(id).addEventListener("click", () => evento("compartilha", { canal, tipo: tipoAtual() }));
 $("#compartilhar").addEventListener("click", async () => {
   if (!atual) return;
   const dados = { title: atual.r.titulo, text: atual.r.texto, url: location.href };
-  if (navigator.share) { try { await navigator.share(dados); return; } catch (e) { if (e?.name === "AbortError") return; } }
+  if (navigator.share) { try { await navigator.share(dados); evento("compartilha", { canal: "nativo", tipo: tipoAtual() }); return; } catch (e) { if (e?.name === "AbortError") return; } }
+  evento("compartilha", { canal: "copiar", tipo: tipoAtual() });
   copia(location.href);
 });
 
 // imagem para os stories (1080×1920), no tema do site
 $("#baixar").addEventListener("click", async () => {
   if (!atual) return;
+  evento("stories", { tipo: tipoAtual() });
   await document.fonts.ready;
   const c = $("#tela"), x = c.getContext("2d"), { a } = atual.r, r = atual.r;
   const W = 1080, H = 1920;
@@ -278,7 +287,7 @@ function rotaDaUrl() {
   if (h.length === 2) return { tipo: "l", cd: h[0], lid: h[1] };
   return null;
 }
-window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, { empurra: false }) : capa(); });
+window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, { empurra: false, como: "voltar" }) : capa(); });
 
 // ------------------------------------------------------------ pessoas no site agora
 // Sinal de presença a cada 30 s enquanto a aba está visível; o código da aba é aleatório e não identifica ninguém.
@@ -317,8 +326,13 @@ window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, {
   const trilho = $("#anuncios-trilho"), pontos = [...document.querySelectorAll("#anuncios-pontos button")];
   if (!trilho) return;
   let i = 0, pausa = false;
+  const qual = (a) => (/instagram/.test(a.href) ? "instagram" : /mailto/.test(a.href) ? "anuncie" : "outro");
+  const vistos = new Set();
+  [...trilho.children].forEach((a) => a.addEventListener("click", () => evento("anuncio", { qual: qual(a), acao: "clique" })));
   const vai = (k) => {
     i = (k + pontos.length) % pontos.length;
+    const a = trilho.children[i];
+    if (a && !vistos.has(i) && document.visibilityState === "visible") { vistos.add(i); evento("anuncio", { qual: qual(a), acao: "viu" }); }
     trilho.style.transform = `translateX(${-100 * i}%)`;
     pontos.forEach((b, j) => b.setAttribute("aria-pressed", String(j === i)));
     [...trilho.children].forEach((a, j) => { a.tabIndex = j === i ? 0 : -1; a.setAttribute("aria-hidden", String(j !== i)); });
