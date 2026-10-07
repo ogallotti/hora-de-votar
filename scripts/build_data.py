@@ -6,7 +6,7 @@ Entradas: .cache/artefatos/log-<uf>-<k>de<n>/log.p<k>.jsonl.gz (coleta nacional)
           .cache/locais/eleitorado_local_votacao_2026_<UF>.csv (baixado se faltar)
 Saídas (formato no README):
     public/data/municipios.json         [[uf, código, nome, abertura, seções, [lat, lon] do centro], ...]
-    public/data/idx/<UF>.json           [[município, id do local, nome, bairro, endereço, nome antigo], ...] (busca)
+    public/data/busca/<prefixo>.json    [[município, id do local, nome, bairro, endereço, nome antigo?], ...] (busca sem cidade)
     public/data/m/<código>.json         locais do município (sem curva: o navegador soma as seções de z/) e a curva do município
     public/data/z/<código>-<zona>.json  curva de cada seção da zona e, em "_", a cidade e os locais da zona
     public/data/br.json                 curva do Brasil e de cada UF
@@ -239,6 +239,50 @@ def grava(p, obj):
     p.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")))
 
 
+def busca_nacional(rows):
+    """Índice estático da busca sem cidade (sem função no servidor): public/data/busca/<prefixo>.json.
+    Cada local entra no arquivo das 2 primeiras letras de cada palavra do nome, bairro, endereço e nome antigo
+    (prefixo mais longo quando o arquivo passa de 1.500 locais). Palavras em mais de 1.500 locais ("escola", "rua")
+    não entram: não ajudam a achar e incham o índice. _.json lista essas palavras ("pare") e os prefixos divididos ("div")."""
+    rx = re.compile(r"[^a-z0-9]+")
+    pal = lambda t: [w for w in rx.sub(" ", sem_acento(t or "")).split() if w]
+    freq = defaultdict(int)
+    for r in rows:
+        for w in set(pal(f"{r[2]} {r[3]} {r[4]} {r[5]}")):
+            freq[w] += 1
+    pare = sorted(w for w, n in freq.items() if n > 1500)
+    pares = set(pare)
+    def chaves(r, k):
+        return {w[:k] for w in pal(f"{r[2]} {r[3]} {r[4]} {r[5]}") if len(w) >= k and w not in pares and not (w.isdigit() and len(w) < 2)}
+    pasta = OUT / "busca"
+    divididos = []
+    linha = lambda x: x[:5] + ([x[5]] if x[5] else [])
+
+    def grava_prefixo(c, lista):
+        # arquivo com até 1.500 locais; acima disso, divide pela próxima letra (até 5)
+        if len(lista) <= 1500 or len(c) >= 5:
+            grava(pasta / f"{c}.json", [linha(x) for x in lista])
+            return
+        divididos.append(c)
+        filhos = defaultdict(list)
+        for r in lista:
+            for f in chaves(r, len(c) + 1):
+                if f.startswith(c):
+                    filhos[f].append(r)
+        for f, l in filhos.items():
+            grava_prefixo(f, l)
+
+    por2 = defaultdict(list)
+    for r in rows:
+        for c in chaves(r, 2):
+            por2[c].append(r)
+    for c, lista in por2.items():
+        grava_prefixo(c, lista)
+    grava(pasta / "_.json", {"pare": pare, "div": sorted(divididos)})
+    n = sum(1 for _ in pasta.glob("*.json"))
+    log(f"busca nacional: {len(rows)} locais, {n} arquivos, {len(pare)} palavras ignoradas, {len(divididos)} prefixos divididos")
+
+
 def calibracao():
     """Calibração do 2º turno medida em 2022 (scripts/calibra_2022.mjs), por UF, ou {} se não houver.
     Usa a versão que errou menos no teste com 2022 (perda no horário recomendado, depois erro médio); se a melhor for
@@ -293,6 +337,7 @@ def main():
     muns_out, br_uf = [], {}
     br_v, br_o, br_n = [0] * (FAIXAS + EXTRA), [0] * (FAIXAS + EXTRA), 0
     br_t, br_c = [], []
+    idx_todos = []
     for uf in ufs:
         rs = list(registros(uf))
         if not rs:
@@ -370,7 +415,7 @@ def main():
                 uf_v[i] += mv[i]
                 uf_o[i] += mo[i]
             uf_n += nm
-        grava(OUT / "idx" / f"{uf.upper()}.json", idx_uf)
+        idx_todos.extend(idx_uf)
         for (m, z), ss in secoes.items():
             # "_": a cidade e os locais da zona, para a página de uma seção não precisar do arquivo da cidade inteira
             meta = {"cd": m, "nome": nomes[m], "uf": uf.upper(), "h0": h0_mun.get(m, 8),
@@ -392,6 +437,8 @@ def main():
     grava(OUT / "br.json", {"v": corta(br_v), "q": corta(br_o, len(corta(br_v))), "ns": br_n, **junta_tempos(br_t),
                             "perfil": perfil(br_c), "calibracao": versao_cal, "cal": cal_brasil(cal, br_uf),
                             "uf": br_uf})
+    if not a.ufs:  # o índice nacional precisa de todas as UFs
+        busca_nacional(idx_todos)
     # municipios.json acumula entre execuções parciais (--ufs)
     idx = OUT / "municipios.json"
     antigos = [x for x in json.loads(idx.read_text())] if idx.exists() else []

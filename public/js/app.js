@@ -335,25 +335,13 @@ window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, {
 
 // ------------------------------------------------------------ início
 let busca = null, municipios = [];
-const ufGeo = { uf: null };
-// estado aproximado (pela conexão), só quando a busca precisar dele, e uma vez por aba
-let pedidoUf = null;
-function pedeUf() {
-  if (pedidoUf) return;
-  try { const g = sessionStorage.getItem("uf"); if (g) { ufGeo.uf = g === "-" ? null : g; pedidoUf = true; return; } } catch { /* sem armazenamento */ }
-  pedidoUf = fetch("/api/onde").then((r) => (r.ok ? r.json() : {})).then((d) => {
-    ufGeo.uf = d.uf || null;
-    try { sessionStorage.setItem("uf", d.uf || "-"); } catch { /* ignora */ }
-  }).catch(() => {});
-}
-$("#q").addEventListener("input", pedeUf, { once: true });
 // a lista de cidades (96 KB) só vem quando a pessoa vai buscar: quem chega por link compartilhado não paga por ela
 let iniciando = null;
 function iniciaBusca() {
   iniciando ??= json("/data/municipios.json").then((ms) => {
     municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
     busca = criaBusca({
-      json, municipios, ufGeo: () => ufGeo.uf,
+      json, municipios,
       input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), confirma: $("#confirma"),
       aoEscolher: (rota) => abre(rota, { gesto: true }), recentes,
     });

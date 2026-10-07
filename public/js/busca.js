@@ -27,9 +27,38 @@ export function interpreta(q) {
 const ehNumero = (t) => /^\d{1,4}$/.test(t);
 const itemSecao = (mun, l, s) => ({ tipo: "secao", cd: mun.cd, z: l.z, s, t: `Zona ${l.z}, seção ${s}`, d: `${l.n} · ${mun.nome}, ${mun.uf}`, ic: "secao", toks: [] });
 
-// cada palavra da busca precisa começar alguma palavra do texto
+// distância de edição com troca de vizinhas (Damerau), parando cedo quando passa do limite
+function distancia(a, b, lim) {
+  if (Math.abs(a.length - b.length) > lim) return lim + 1;
+  let ant2 = null, ant = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    let menor = i;
+    for (let j = 1; j <= b.length; j++) {
+      const c = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + c);
+      if (ant2 && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, ant2[j - 2] + 1);
+      cur.push(v);
+      menor = Math.min(menor, v);
+    }
+    if (menor > lim) return lim + 1;
+    ant2 = ant; ant = cur;
+  }
+  return ant[b.length];
+}
+// erro de digitação tolerado: 1 letra em palavras de 4 a 7 letras, 2 a partir de 8 (curtas e números: exato)
+const folga = (t) => (/^\d+$/.test(t) || t.length < 4 ? 0 : t.length < 8 ? 1 : 2);
+function parecida(t, w) {
+  const k = folga(t);
+  if (!k) return false;
+  // compara com a palavra inteira e com o começo dela (quem ainda está digitando)
+  return distancia(t, w, k) <= k || (w.length > t.length && distancia(t, w.slice(0, t.length), k) <= k);
+}
+
+// cada palavra da busca precisa começar alguma palavra do texto; com flex, vale também parecida (erro de digitação)
+let flex = false;
 function casa(toks, alvoPalavras) {
-  return toks.every((t) => alvoPalavras.some((w) => w.startsWith(t)));
+  return toks.every((t) => alvoPalavras.some((w) => w.startsWith(t) || (flex && parecida(t, w))));
 }
 
 /** Destaca, em HTML, o começo das palavras que casam com a busca. */
@@ -46,7 +75,7 @@ export function destaca(texto, toks) {
 }
 
 
-export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, confirma, aoEscolher, recentes }) {
+export function criaBusca({ json, municipios, input, lista, contexto, confirma, aoEscolher, recentes }) {
   const porCodigo = new Map(municipios.map((m) => [m.cd, m]));
   const porPrimeira = new Map();
   for (const m of municipios) {
@@ -64,16 +93,29 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
     for (const l of d.locais) { l._p ??= palavras(`${l.n} ${l.b} ${l.e} ${l.a || ""}`); l._n ??= palavras(l.n); }
     return d;
   };
-  const indiceUf = async (uf) => {
-    const rows = await json(`/data/idx/${uf}.json`);
-    if (!rows._pronto) {
-      rows._pronto = rows.map(([cd, id, n, b, e, a]) => {
-        const mun = porCodigo.get(cd);
-        return { cd, id, n, b, e, mun, _n: palavras(n), _p: palavras(`${n} ${b} ${e} ${a} ${mun?.nome || ""}`) };
-      });
-    }
+  // índice nacional estático (data/busca/, sem função no servidor): baixa só o pedaço do prefixo da palavra mais
+  // longa da busca. Palavras muito comuns ("escola", "rua") não escolhem pedaço, mas ainda filtram o resultado.
+  let manifesto = null;
+  const indice = async (toks) => {
+    manifesto ??= json("/data/busca/_.json").then((m) => ({ pare: new Set(m.pare), div: new Set(m.div) }));
+    const { pare, div } = await manifesto;
+    const chaveDe = (t) => {
+      let k = 2;
+      while (k < 5 && t.length > k && div.has(t.slice(0, k))) k++;
+      return t.length >= 2 && !div.has(t.slice(0, k)) ? t.slice(0, k) : null; // prefixo dividido e palavra curta: não dá
+    };
+    const ordem = (xs) => xs.filter((t) => !pare.has(t)).sort((a, b) => b.length - a.length);
+    const chave = [...ordem(toks.filter((t) => !ehNumero(t))), ...ordem(toks.filter(ehNumero))].map(chaveDe).find(Boolean);
+    if (!chave) return null;
+    const rows = await json(`/data/busca/${chave}.json`);
+    rows._pronto ??= rows.map(([cd, id, n, b, e, a]) => {
+      const mun = porCodigo.get(cd);
+      return { cd, id, n, b, e, mun, _n: palavras(n), _p: palavras(`${n} ${b} ${e} ${a || ""} ${mun?.nome || ""}`) };
+    });
     return rows._pronto;
   };
+  // cidade e estado da última consulta: desempate para quem busca sem dizer a cidade
+  const ultimo = () => { const r = recentes()[0]; const m = r && porCodigo.get(r.cd); return m ? { cd: m.cd, uf: m.uf } : {}; };
 
   function achaCidade(toks, uf) {
     let melhor = null;
@@ -81,7 +123,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
       for (const m of porPrimeira.get(toks[j]) || []) {
         if (m.p.length > toks.length - j || !m.p.every((w, k) => toks[j + k] === w)) continue;
         if (uf && m.uf !== uf) continue;
-        const nota = m.p.length * 1e7 + (m.uf === ufGeo() ? 5e6 : 0) + m.ns;
+        const nota = m.p.length * 1e7 + (m.uf === ultimo().uf ? 5e6 : 0) + m.ns;
         if (!melhor || nota > melhor.nota) melhor = { m, j, nota };
       }
     }
@@ -89,7 +131,19 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
   }
 
   // ------------------------------------------------------------ busca
+  // primeiro exata; sem nada, de novo tolerando erro de digitação (só no que já foi baixado: instantâneo)
   async function busca(q) {
+    flex = false;
+    const exata = await buscaUma(q);
+    if (exata.grupos.length || !q.trim()) return exata;
+    flex = true;
+    try {
+      const solta = await buscaUma(q);
+      if (solta.grupos.length) solta.grupos[0].rot = `Talvez: ${solta.grupos[0].rot.toLowerCase()}`;
+      return solta.grupos.length ? solta : exata;
+    } finally { flex = false; }
+  }
+  async function buscaUma(q) {
     const { toks: todos, zona, secao, uf } = interpreta(q);
     let toks = todos, mun = cidade;
     const grupos = [];
@@ -106,7 +160,7 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
         const cs = municipios
           .filter((m) => (!uf || m.uf === uf) && casa(todos, m.p))
           .map((m) => [norm(m.nome).startsWith(qn) ? 0 : 1, m])
-          .sort((a, b) => a[0] - b[0] || (b[1].uf === ufGeo()) - (a[1].uf === ufGeo()) || b[1].ns - a[1].ns)
+          .sort((a, b) => a[0] - b[0] || (b[1].uf === ultimo().uf) - (a[1].uf === ultimo().uf) || b[1].ns - a[1].ns)
           .slice(0, MAX.cidade);
         cidadeExata = cs.some(([, m]) => norm(m.nome) === qn);
         if (cs.length) grupos.push({ rot: "Cidades", itens: cs.map(([, m]) => ({ tipo: "cidade", mun: m, t: m.nome, d: m.uf, x: `${m.ns.toLocaleString("pt-BR")} seções`, ic: "cidade", toks: todos })) });
@@ -177,17 +231,17 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
         if (bs.length > 1) grupos.push({ rot: "Bairros com mais locais", itens: bs.map(([b, n]) => ({ tipo: "bairro", mun, bairro: b, t: b, d: `${mun.nome}, ${mun.uf}`, x: `${n} locais`, ic: "bairro", toks: [] })) });
       }
     } else if ((toks.join("").length >= 3 || (secao != null && toks.length)) && !cidadeExata) {
-      // sem cidade: locais do estado (UF digitada ou a da conexão)
-      const ufs = [...new Set([uf, ufGeo()].filter(Boolean))];
+      // sem cidade: índice nacional estático (UF digitada no fim filtra: "pinheiros sp")
       const nums = toks.filter(ehNumero).map(Number), pal = toks.filter((t) => !ehNumero(t));
       if (secao != null && zona == null) nums.push(secao); // "seção 410 undb"
       const comNumero = nums.length && pal.join("").length >= 2;
       const achados = [];
-      for (const u of ufs) {
-        for (const r of await indiceUf(u).catch(() => [])) {
-          const tudo = casa(toks, r._p), nome = comNumero && casa(pal, r._p);
-          if (tudo || nome) achados.push({ r, nome: !tudo, nota: (tudo ? toks : pal).reduce((s, t) => s + (r._n.some((w) => w.startsWith(t)) ? 3 : 1), 0) + bonusFrase(r._p) + (r.mun?.uf === ufGeo() ? 0.5 : 0) + Math.log10((r.mun?.ns || 1)) / 10 });
-        }
+      const linhas = await indice(toks).catch(() => []);
+      const ult = ultimo();
+      for (const r of linhas || []) {
+        if (uf && r.mun?.uf !== uf) continue;
+        const tudo = casa(toks, r._p), nome = comNumero && casa(pal, r._p);
+        if (tudo || nome) achados.push({ r, nome: !tudo, nota: (tudo ? toks : pal).reduce((s, t) => s + (r._n.some((w) => w.startsWith(t)) ? 3 : 1), 0) + bonusFrase(r._p) + (r.cd === ult.cd ? 1 : r.mun?.uf === ult.uf ? 0.5 : 0) + Math.log10((r.mun?.ns || 1)) / 10 });
       }
       achados.sort((a, b) => b.nota - a.nota);
       // "410 undb" sem cidade: confere a seção nos locais que casaram pelo nome (abre o arquivo da cidade deles)
@@ -204,8 +258,9 @@ export function criaBusca({ json, municipios, ufGeo, input, lista, contexto, con
         cands.sort((a, b) => b.nota - a.nota);
         if (cands.length) grupos.unshift({ rot: "Seções", itens: cands.slice(0, MAX.secao).map((c) => c.it) });
       }
-      if (!achados.length && ufs.length) aviso = `Não achamos em ${ufs.join(", ")}. Inclua a cidade (ex.: <b>${esc(frase)} são paulo</b>).`;
-      if (achados.length) grupos.push({ rot: ufs.length ? `Locais de votação · ${ufs.join(", ")}` : "Locais de votação", itens: achados.slice(0, MAX.local).map(({ r }) => ({ tipo: "local", cd: r.cd, lid: r.id, t: r.n, d: [r.b, r.mun ? `${r.mun.nome}, ${r.mun.uf}` : ""].filter(Boolean).join(" · "), x: "", ic: "pin", toks })) });
+      if (linhas === null) aviso = "Digite um pedaço maior do nome da escola, do bairro ou da rua (ou a cidade).";
+      else if (!achados.length) aviso = `Não achamos. Tente o nome da escola com a cidade (ex.: <b>${esc(frase)} são luís</b>).`;
+      if (achados.length) grupos.push({ rot: uf ? `Locais de votação · ${uf}` : "Locais de votação", itens: achados.slice(0, MAX.local).map(({ r }) => ({ tipo: "local", cd: r.cd, lid: r.id, t: r.n, d: [r.b, r.mun ? `${r.mun.nome}, ${r.mun.uf}` : ""].filter(Boolean).join(" · "), x: "", ic: "pin", toks })) });
     }
     return { grupos, aviso };
   }
