@@ -13,7 +13,7 @@ const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Versão do formato dos dados: mudar sempre que public/data/ mudar de formato (ex.: faixas de 15 → 5 min).
 // Vai na URL para o navegador não misturar arquivo antigo em cache com código novo.
-const VERSAO_DADOS = "10min-3";
+const VERSAO_DADOS = "10min-4";
 const cache = new Map();
 function json(url) {
   if (!cache.has(url)) {
@@ -139,7 +139,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   if (empurra && location.pathname !== caminho) history.pushState({ rota }, "", caminho);
   document.title = `${r.titulo} · Hora de votar`;
   guardaRecente(ctx);
-  busca?.defineCidade(municipios.find((m) => m.cd === ctx.mun.cd) || null);
+  busca?.defineCidade(municipios.find((m) => m.cd === ctx.mun.cd) || null); // sem a lista ainda: entra quando a busca iniciar
   $("#q").value = "";
 
   const { a } = r;
@@ -347,19 +347,27 @@ function pedeUf() {
   }).catch(() => {});
 }
 $("#q").addEventListener("input", pedeUf, { once: true });
-json("/data/municipios.json").then((ms) => {
-  municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
-  busca = criaBusca({
-    json, municipios, ufGeo: () => ufGeo.uf,
-    input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), confirma: $("#confirma"),
-    aoEscolher: (rota) => abre(rota, { gesto: true }), recentes,
+// a lista de cidades (96 KB) só vem quando a pessoa vai buscar: quem chega por link compartilhado não paga por ela
+let iniciando = null;
+function iniciaBusca() {
+  iniciando ??= json("/data/municipios.json").then((ms) => {
+    municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
+    busca = criaBusca({
+      json, municipios, ufGeo: () => ufGeo.uf,
+      input: $("#q"), lista: $("#resultados"), contexto: $("#contexto"), confirma: $("#confirma"),
+      aoEscolher: (rota) => abre(rota, { gesto: true }), recentes,
+    });
+    if (atual) busca.defineCidade(municipios.find((m) => m.cd === atual.ctx.mun.cd) || null);
+    if (document.activeElement === $("#q")) $("#q").dispatchEvent(new Event("focus"));
+    if ($("#q").value) $("#q").dispatchEvent(new Event("input"));
   });
-  if (atual) busca.defineCidade(municipios.find((m) => m.cd === atual.ctx.mun.cd) || null);
-});
+  return iniciando;
+}
+for (const ev of ["focus", "pointerdown", "input"]) $("#q").addEventListener(ev, iniciaBusca, { once: true });
 $("#dica-busca").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-q]");
   if (!b) return;
-  const q = $("#q"); q.value = b.dataset.q; q.focus(); q.dispatchEvent(new Event("input"));
+  const q = $("#q"); q.value = b.dataset.q; iniciaBusca().then(() => { q.focus(); q.dispatchEvent(new Event("input")); });
 });
 
 const inicial = rotaDaUrl();

@@ -4,21 +4,24 @@ import { analisa, hora, GOV2, JANELA } from "./modelo.js";
 
 const fmt = (n) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-/** rota: {tipo: "s", cd, z, s} (seção) ou {tipo: "l", cd, lid} (local). Lança erro se não existir. */
+/** rota: {tipo: "s", cd, z, s} (seção) ou {tipo: "l", cd, lid} (local). Lança erro se não existir.
+ *  Lê só o arquivo da zona (traz a cidade e os locais da zona em "_"), não o da cidade inteira: link compartilhado leve. */
 export async function resolve(carrega, rota) {
-  const [mun, br] = await Promise.all([carrega(`/data/m/${+rota.cd}.json`), carrega("/data/br.json").catch(() => null)]);
+  const z = rota.tipo === "l" ? +String(rota.lid).split("-")[0] : +rota.z;
+  const [secoes, br] = await Promise.all([carrega(`/data/z/${+rota.cd}-${z}.json`), carrega("/data/br.json").catch(() => null)]);
+  const meta = secoes._;
+  if (!meta) throw new Error("zona sem dados");
+  const mun = { cd: meta.cd, nome: meta.nome, uf: meta.uf, h0: meta.h0 };
   const doUf = br?.uf?.[mun.uf];
   const perfil = doUf?.perfil || ((doUf?.h0 ?? 8) === 8 ? br?.perfil : null);
   const cal = doUf?.cal || null; // calibração do 2º turno medida em 2022 (comparecimento, tempos, horário de chegada)
   if (rota.tipo === "l") {
-    const local = mun.locais.find((x) => x.id === rota.lid);
+    const local = meta.locais.find((x) => x.id === rota.lid);
     if (!local?.ns) throw new Error("local não encontrado");
-    const secoes = await carrega(`/data/z/${+rota.cd}-${local.z}.json`).catch(() => ({}));
     return { mun, local, d: somaLocal(local, secoes), perfil, cal };
   }
-  const z = +rota.z, s = +rota.s;
-  const local = mun.locais.find((x) => x.z === z && x.s.includes(s));
-  const secoes = await carrega(`/data/z/${+rota.cd}-${z}.json`).catch(() => ({}));
+  const s = +rota.s;
+  const local = meta.locais.find((x) => x.s.includes(s));
   let d = secoes[s], nota = "";
   if (d?.p) { nota = `A seção ${s} vota na mesma urna da seção ${d.p}.`; d = secoes[d.p]; }
   if (!d && local?.ns) {

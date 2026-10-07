@@ -8,7 +8,7 @@ Saídas (formato no README):
     public/data/municipios.json         [[uf, código, nome, abertura, seções, [lat, lon] do centro], ...]
     public/data/idx/<UF>.json           [[município, id do local, nome, bairro, endereço, nome antigo], ...] (busca)
     public/data/m/<código>.json         locais do município (sem curva: o navegador soma as seções de z/) e a curva do município
-    public/data/z/<código>-<zona>.json  curva de cada seção da zona
+    public/data/z/<código>-<zona>.json  curva de cada seção da zona e, em "_", a cidade e os locais da zona
     public/data/br.json                 curva do Brasil e de cada UF
 
 Métrica: faixas de 10 min contadas a partir da abertura oficial (8h de Brasília = hora local da urna).
@@ -372,7 +372,10 @@ def main():
             uf_n += nm
         grava(OUT / "idx" / f"{uf.upper()}.json", idx_uf)
         for (m, z), ss in secoes.items():
-            grava(OUT / "z" / f"{m}-{z}.json", {str(s): d for s, d in sorted(ss.items())})
+            # "_": a cidade e os locais da zona, para a página de uma seção não precisar do arquivo da cidade inteira
+            meta = {"cd": m, "nome": nomes[m], "uf": uf.upper(), "h0": h0_mun.get(m, 8),
+                    "locais": [l for l in locais[m].values() if l["z"] == z]}
+            grava(OUT / "z" / f"{m}-{z}.json", {"_": meta, **{str(s): d for s, d in sorted(ss.items())}})
         br_uf[uf.upper()] = {"v": corta(uf_v), "q": corta(uf_o, len(corta(uf_v))), "ns": uf_n,
                              "h0": statistics.mode(h0_mun.values()) if h0_mun else 8, **junta_tempos(uf_t),
                              "perfil": uf_perfil, "livres": sum(1 for v, q in uf_c if saturada(v, q) == 0)}
