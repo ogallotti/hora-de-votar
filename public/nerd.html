@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Estatísticas para nerds · Hora de votar</title>
+<meta name="description" content="O 1º turno de 2026 urna por urna, pelos logs de 498 mil urnas: tempo para votar, biometria, filas, horário de pico, comparecimento e último voto, do Brasil até a sua seção.">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0f0e0d">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Hora de votar">
+<meta property="og:locale" content="pt_BR">
+<meta property="og:url" content="https://horadevotar.com/nerd">
+<meta property="og:title" content="Estatísticas para nerds: o 1º turno urna por urna">
+<meta property="og:description" content="Tempo para votar, filas, biometria e o último voto do Brasil, do país inteiro até a sua seção.">
+<meta property="og:image" content="https://horadevotar.com/og/brasil.png?v=3">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://horadevotar.com/og/brasil.png?v=3">
+<link rel="canonical" href="https://horadevotar.com/nerd">
+<link rel="icon" href="/icone-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="/icone-180.png">
+<link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/data/nerd/br.json?v=nerd-2" as="fetch" crossorigin>
+<link rel="preload" href="/data/nerd/geo-uf.json?v=nerd-2" as="fetch" crossorigin>
+<link rel="stylesheet" href="/css/nerd.css">
+<link rel="stylesheet" href="/vendor/maplibre-gl.css">
+<script src="/vendor/maplibre-gl-csp.js" defer></script>
+<script type="module" src="/js/nerd/app.js"></script>
+</head>
+<body class="nerd">
+  <div id="app">
+    <div id="map" role="region" aria-label="Mapa"></div>
+
+    <header class="top">
+      <a class="marca" href="/" aria-label="Hora de votar, página principal">Hora de <span class="marca-tecla">votar</span></a>
+      <a class="nerd-selo" href="/nerd" id="brand-nerd">para nerds</a>
+      <button class="pill uf-pill" id="uf-pill" type="button" aria-haspopup="dialog">Brasil</button>
+      <button class="search-btn" id="search-btn" type="button" aria-haspopup="dialog">
+        <span class="sb-i" id="sb-i"></span><span class="sb-t">Buscar estado, cidade ou local</span><kbd>/</kbd>
+      </button>
+      <div class="top-r">
+        <a class="pill pill-link" href="/">Minha seção</a>
+        <button class="pill icon-btn" id="btn-share" type="button" title="Copiar o link desta visão">Copiar link</button>
+      </div>
+    </header>
+
+    <!-- no celular, .sheet vira a gaveta de baixo com os dois cartões; no desktop ela "some" (display: contents) -->
+    <div class="sheet" id="sheet" data-snap="half">
+      <button class="sheet-handle" id="sheet-handle" type="button" aria-label="Expandir ou recolher"></button>
+      <section class="card card-main" id="main-card" aria-live="polite"></section>
+      <section class="card card-side" id="side-card"></section>
+    </div>
+
+    <div class="mapbar" id="mapbar" hidden></div>
+    <nav class="crumbs" id="crumbs" aria-label="Recorte"></nav>
+    <div class="legend" id="legend" hidden></div>
+    <div class="tip" id="tip" hidden role="tooltip"></div>
+    <div class="toast" id="toast" hidden role="status"></div>
+
+    <div class="loading" id="loading" role="status">
+      <span class="marca marca-grande">Hora de <span class="marca-tecla">votar</span></span>
+      <div id="loading-t">Lendo 498 mil urnas…</div>
+    </div>
+  </div>
+</body>
+</html>

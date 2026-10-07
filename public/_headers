@@ -18,3 +18,6 @@
 # dados: a URL leva a versão do formato (VERSAO_DADOS em app.js); 1 dia no navegador, e serve o antigo enquanto revalida
 /data/*
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+# MapLibre (página /nerd): troca de versão = troca de arquivo
+/vendor/*
+  Cache-Control: public, max-age=604800

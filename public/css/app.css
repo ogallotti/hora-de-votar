@@ -351,6 +351,7 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .tabela tbody tr:nth-child(even) { background: var(--fundo-2); }
 
 /* ------------------------------------------------------------ método e rodapé */
+.para-nerds { display: flex; justify-content: center; margin: 56px auto 0; padding: 0 20px; }
 .metodo { width: 100%; margin: 96px auto 0; padding: 0 20px; text-align: center; }
 .metodo h2 { margin: 0 0 14px; font-size: 26px; font-weight: 640; letter-spacing: -.035em; }
 .metodo { max-width: 760px; }
