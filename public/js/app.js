@@ -71,7 +71,9 @@ $(".legenda").addEventListener("click", (e) => {
   const liga = b.getAttribute("aria-pressed") !== "true";
   if (!liga && outro.getAttribute("aria-pressed") !== "true") return; // sempre sobra uma
   b.setAttribute("aria-pressed", String(liga));
-  grafico.series({ r1: $('.leg[data-serie="1"]').getAttribute("aria-pressed") === "true", r2: $('.leg[data-serie="2"]').getAttribute("aria-pressed") === "true" });
+  const r1 = $('.leg[data-serie="1"]').getAttribute("aria-pressed") === "true", r2 = $('.leg[data-serie="2"]').getAttribute("aria-pressed") === "true";
+  grafico.series({ r1, r2 });
+  $("#palco-grafico").classList.toggle("so-1", r1 && !r2); // só o 1º turno: azul brilhante
 });
 
 // ------------------------------------------------------------ Brasil (capa)
@@ -234,16 +236,16 @@ $("#baixar").addEventListener("click", async () => {
     for (let j = 0; j < L; j++) {
       const verde = j < k2, cinza = j < k1;
       if (!verde && !cinza) continue; // sem ponto onde ninguém esperou
-      x.fillStyle = verde ? cor(nt[i]) : "#cdd2cf";
+      x.fillStyle = verde ? cor(nt[i]) : "#a9c6ee";
       x.beginPath(); x.arc(px(i), py(j), verde ? rr : rr * 0.7, 0, 7); x.fill();
     }
   }
   x.fillStyle = "#6b726e"; x.font = "500 32px Geist, sans-serif";
   for (let i = 0; i <= N; i += 120 / FAIXA_MIN) { x.textAlign = i ? "center" : "left"; x.fillText(hora(i, a.h0), gx + (i / N) * gw, gy + gh + 54); }
   x.textAlign = "left";
-  x.fillStyle = "#cdd2cf"; x.beginPath(); x.arc(110, 1624, 9, 0, 7); x.fill();
+  x.fillStyle = "#a9c6ee"; x.beginPath(); x.arc(110, 1624, 9, 0, 7); x.fill();
   x.fillStyle = "#474e4a"; x.font = "500 32px Geist, sans-serif"; x.fillText(`${r.dez} de 10 pegaram fila no 1º turno`, 146, 1634);
-  const lg = x.createLinearGradient(92, 0, 132, 0); lg.addColorStop(0, "#e23a2e"); lg.addColorStop(0.5, "#a3aba6"); lg.addColorStop(1, "#0fa84f");
+  const lg = x.createLinearGradient(92, 0, 132, 0); ["#e23a2e", "#f28a1f", "#eab308", "#0fa84f"].forEach((c, k) => lg.addColorStop(k / 3, c));
   x.fillStyle = lg; x.beginPath(); x.roundRect(90, 1668, 42, 16, 8); x.fill();
   x.fillStyle = "#474e4a"; x.fillText(a.fator ? `2º turno: fila ${fmt(a.fator)}× mais rápida` : "2º turno, estimativa", 146, 1688);
   x.fillStyle = "#0a0c0b"; x.font = "600 44px Geist, sans-serif"; x.fillText("Veja o da sua seção em", 90, 1792);

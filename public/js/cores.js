@@ -1,9 +1,10 @@
-// Cor de cada coluna do 2º turno: vermelho 100% saturado na pior hora, verde 100% saturado na melhor e um cinza
-// neutro no meio (escala divergente). Mistura em OKLab para a transição ficar uniforme aos olhos.
+// Cor de cada coluna do 2º turno, como um semáforo: verde na melhor hora, amarelo e laranja no caminho, vermelho na
+// pior. Mistura em OKLab entre cores vizinhas, para a transição ficar natural aos olhos.
 // Pura: usada no gráfico, nos stories e na imagem de prévia (borda).
-import { suaviza, OFICIAIS } from "./modelo.js";
+import { suaviza, OFICIAIS, JANELA } from "./modelo.js";
 
-export const VERDE = "#0fa84f", NEUTRO = "#a3aba6", VERMELHO = "#e23a2e";
+export const ESCALA = ["#0fa84f", "#eab308", "#f28a1f", "#e23a2e"]; // verde, amarelo, laranja, vermelho (0 → 1)
+export const GRADIENTE = `linear-gradient(90deg, ${[...ESCALA].reverse().join(", ")})`; // da legenda: pior → melhor
 
 const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
 const gam = (c) => Math.round(255 * Math.max(0, Math.min(1, c <= 0.0031308 ? 12.92 * c : 1.055 * c ** (1 / 2.4) - 0.055)));
@@ -19,22 +20,27 @@ function deLab([L, A, B]) {
   const r = 4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s, g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s, b = -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s;
   return `#${[r, g, b].map((c) => gam(c).toString(16).padStart(2, "0")).join("")}`;
 }
-const LAB = { v: paraLab(VERDE), n: paraLab(NEUTRO), r: paraLab(VERMELHO) };
+const LAB = ESCALA.map(paraLab);
 const mistura = (a, b, k) => deLab(a.map((x, i) => x + (b[i] - x) * k));
 
 /** t de 0 (melhor) a 1 (pior) → cor. */
 export function cor(t) {
-  const k = Math.max(0, Math.min(1, t));
-  return k < 0.5 ? mistura(LAB.v, LAB.n, k / 0.5) : mistura(LAB.n, LAB.r, (k - 0.5) / 0.5);
+  const k = Math.max(0, Math.min(1, t)) * (LAB.length - 1), i = Math.min(LAB.length - 2, Math.floor(k));
+  return mistura(LAB[i], LAB[i + 1], k - i);
 }
 
-/** Quão ruim é cada faixa oficial, de 0 (melhor) a 1 (pior), pela chance de fila suavizada do 2º turno.
- *  Os extremos são a média da melhor e da pior janela de 1 h (r2 de horarios()), para a cor bater com a recomendação:
- *  o melhor horário fica no verde cheio e a faixa "evite" no vermelho cheio.
- *  Dia sem diferença real (menos de 8 pontos entre a melhor e a pior janela): tudo neutro (0,5). */
+/** Quão ruim é cada faixa oficial, de 0 (melhor) a 1 (pior), pela chance de fila suavizada do 2º turno, entre a faixa
+ *  mais calma e a mais cheia do dia: o vermelho cheio fica só no pico. O verde cheio fica só no melhor horário
+ *  (r2.melhor, a janela recomendada); fora dele, nada passa de VERDE_FORA, para a cor nunca contradizer a recomendação.
+ *  Dia sem diferença real (menos de 8 pontos entre a faixa mais calma e a mais cheia): verde claro, com o melhor cheio. */
+const VERDE_FORA = 0.14;
 export function notas(o2, r2) {
   const so = suaviza(o2.slice(0, OFICIAIS));
-  const min = r2?.mMelhor ?? Math.min(...so), max = r2?.mPior ?? Math.max(...so);
-  if (max - min < 8) return so.map(() => 0.5);
-  return so.map((x) => Math.max(0, Math.min(1, (x - min) / (max - min))));
+  const min = Math.min(...so), max = Math.max(...so);
+  const noMelhor = (i) => r2?.melhor != null && i >= r2.melhor && i < r2.melhor + JANELA;
+  return so.map((x, i) => {
+    if (noMelhor(i)) return 0;
+    if (max - min < 8) return VERDE_FORA;
+    return Math.max(VERDE_FORA, (x - min) / (max - min));
+  });
 }

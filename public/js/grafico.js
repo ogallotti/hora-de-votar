@@ -9,7 +9,7 @@ import { cor, notas } from "./cores.js";
 const NS = "http://www.w3.org/2000/svg";
 const N = OFICIAIS + 60 / FAIXA_MIN; // até 1 h depois do encerramento (quem ainda estava na fila)
 const LINHAS = 20;      // 20 pontos por coluna: cada um = 5%
-const COR = { r1: "#cdd2cf", r1Forte: "#8d958f", verde: "#0e7a45", aceso: "#12a95a", brilho: "#3fd283", evite: "#d9483b" };
+const COR = { r1: "#a9c6ee", r1Forte: "#4f86d9", r1Solo: "#1f6feb", r1Brilho: "#5aa2ff", verde: "#0e7a45", aceso: "#12a95a", brilho: "#3fd283", evite: "#d9483b" };
 const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 const easeIO = (t) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
 const easeOut = (t) => 1 - (1 - t) ** 3;
@@ -240,8 +240,12 @@ export class Grafico {
     const passoX = (W - m.l - m.r) / N, passoY = (H - m.t - m.b) / LINHAS;
     const raio = (this.raio = Math.max(1.6, Math.min(passoX, passoY) * 0.3));
     this.sp = {
-      r1: sprite(raio * 0.7, COR.r1, 0, dpr),         // 1º turno: menor e mais claro, para o verde do 2º se destacar
+      r1: sprite(raio * 0.7, COR.r1, 0, dpr),         // 1º turno: azul claro e menor, para o 2º turno se destacar
       r1Forte: sprite(raio * 0.85, COR.r1Forte, 0, dpr),
+      // só o 1º turno ligado: azul brilhante, no tamanho cheio
+      r1Solo: sprite(raio, COR.r1Solo, raio * 1.6, dpr, "40"),
+      r1SoloForte: sprite(raio * 1.2, COR.r1Solo, raio * 2, dpr, "55"),
+      r1Brilho: sprite(raio * 1.1, COR.r1Brilho, raio * 3.2, dpr, "88"),
       verde: sprite(raio, COR.verde, raio * 1.4, dpr),
       verdeForte: sprite(raio * 1.2, COR.verde, raio * 1.8, dpr),
       brilho: sprite(raio * 1.05, COR.brilho, raio * 3, dpr),
@@ -324,14 +328,15 @@ export class Grafico {
       for (let j = 0; j < LINHAS; j++) {
         const y = yRow(j);
         const a2 = Math.max(0, Math.min(1, k2 - j)), a1 = Math.max(0, Math.min(1, k1 - j));
-        if (a1 > 0 && a2 < 1) poe(foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2) + (a2 ? 0 : 0));
+        const solo = !this.mostra.r2;
+        if (a1 > 0 && a2 < 1) poe(solo ? (foco ? sp.r1SoloForte : sp.r1Solo) : foco ? sp.r1Forte : sp.r1, x, y, a1 * (1 - a2));
         if (a2 > 0) poe(v, x, y, a2);
       }
     }
     for (const p of this.piscas) {
       const t = (agora - p.t0) / 900, k = Math.sin(Math.PI * t);
       const verde = this.mostra.r2 && p.i < OFICIAIS && p.j < (c.o2[p.i] / 100) * LINHAS;
-      poe(verde ? (col[p.i]?.b || sp.brilho) : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde ? k : k * 0.8, 1 + 0.35 * k);
+      poe(verde ? (col[p.i]?.b || sp.brilho) : !this.mostra.r2 ? sp.r1Brilho : sp.r1Forte, this.x(p.i) * dpr, yRow(p.j), verde || !this.mostra.r2 ? k : k * 0.8, 1 + 0.35 * k);
     }
     ctx.globalAlpha = 1;
   }

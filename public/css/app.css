@@ -188,8 +188,11 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
 .leg:hover { border-color: var(--linha-2); }
 .leg[aria-pressed="false"] { opacity: .45; }
 .leg i { display: inline-block; width: 9px; height: 9px; border-radius: 999px; margin: 0 2px; }
-.leg-1 i { background: #cdd2cf; width: 7px; height: 7px; }
-.leg-2 i { width: 22px; height: 8px; border-radius: 999px; margin: 0 2px; background: linear-gradient(90deg, #e23a2e, #a3aba6, #0fa84f); }
+/* só o 1º turno: as marcas do 2º turno (melhor horário, evite) saem junto com ele */
+.esconde-2 .etiqueta-melhor, .esconde-2 .etiqueta-pior, .esconde-2 .g-melhor, .esconde-2 .g-pior { opacity: 0 !important; }
+.so-1 .leg-1 i { background: #1f6feb; box-shadow: 0 0 0 3px rgb(31 111 235 / .22); width: 9px; height: 9px; }
+.leg-1 i { background: #a9c6ee; width: 7px; height: 7px; }
+.leg-2 i { width: 22px; height: 8px; border-radius: 999px; margin: 0 2px; background: linear-gradient(90deg, #e23a2e, #f28a1f, #eab308, #0fa84f); }
 .rotulo-grafico { margin: 0; font-size: 13.5px; color: var(--tinta-3); display: inline-flex; align-items: center; gap: 8px; text-align: right; }
 .rotulo-grafico b { color: var(--tinta); font-weight: 600; }
 .bandeira { width: 21px; height: 15px; object-fit: cover; border-radius: 3px; box-shadow: 0 0 0 1px rgb(10 12 11 / .08); flex-shrink: 0; }
