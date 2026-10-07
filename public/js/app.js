@@ -40,6 +40,13 @@ function json(url) {
 
 // ------------------------------------------------------------ leitura da régua: espera e tempo na urna
 let h0 = 8, analise = null, contagem = null;
+// tempo dito como as pessoas falam: "uns 30 segundos", "1 minuto e 19 segundos"
+function falado(s) {
+  s = Math.round(s || 0);
+  if (s < 60) return `uns ${Math.max(5, Math.round(s / 5) * 5)} segundos`;
+  const m = Math.floor(s / 60), r = s % 60;
+  return `${m} ${m === 1 ? "minuto" : "minutos"}${r ? ` e ${r} ${r === 1 ? "segundo" : "segundos"}` : ""}`;
+}
 // tempo total arredondado como as pessoas falam: "1 min", "3 min", "mais de 30 min"
 const cerca = (s) => (s < 90 ? "cerca de 1 min" : s > 1800 ? "mais de 30 min" : `cerca de ${Math.round(s / 60)} min`);
 const milhoes = (n) => (n >= 1e6 ? `${fmt(n / 1e6)} milhões de` : n >= 1e3 ? `${Math.round(n / 1e3)} mil` : String(Math.round(n)));
@@ -48,16 +55,20 @@ function leitura(i) {
   const a = analise, dentro = i < OFICIAIS;
   $("#l-hora").textContent = hora(i, h0);
   const n = contagem?.[i] ?? 0;
-  const quem = n ? ` · ${milhoes(n)} ${n === 1 ? "eleitor votou" : "eleitores votaram"}` : "";
-  $("#l-faixa").textContent = (dentro ? `às ${hora(i + 1, h0)}` : "após o encerramento") + quem;
-  // número grande = tempo da chegada à saída (espera + mesa + urna); abaixo, a espera e quantos na frente
+  $("#l-faixa").textContent = !dentro
+    ? "depois do encerramento, só vota quem já estava na fila"
+    : n ? `${milhoes(n)} ${n === 1 ? "pessoa votou" : "pessoas votaram"} nesse horário no 1º turno` : "ninguém votou nesse horário no 1º turno";
+  // 1º turno: quanto tempo levou para votar quem chegou nesse horário, e quantos pegaram fila
+  const dez = Math.round((a.o1[i] || 0) / 10);
   $("#w1").textContent = cerca(a.total1[i] || 0);
-  const e1 = a.w1[i] || 0;
-  $("#s1").innerHTML = e1 > 1800 ? "da chegada à saída · fila muito longa" : `da chegada à saída · <b>${minutos(e1)}</b> de espera estimada`;
-  $("#w2").textContent = dentro ? cerca(a.total2[i] || 0) : "urna fechada";
-  const atendimento = (a.t2 || 0) + (a.me2 || 0);
-  const naFrente = dentro && atendimento ? Math.max(1, Math.round((a.seFila2[i] || 0) / atendimento)) : 0;
-  $("#e2").textContent = !dentro ? "votação encerrada" : (a.o2[i] || 0) < 15 ? "quase sem fila" : `se pegar fila, ~${naFrente} ${naFrente === 1 ? "pessoa" : "pessoas"} na sua frente`;
+  $("#s1").textContent = `para votar, contando a fila. ${dez === 0 ? "Quase ninguém pegou fila." : dez === 10 ? "Todo mundo pegou fila." : `${dez} em cada 10 pessoas pegaram fila.`}`;
+  // 2º turno: estimativa de tempo e de quantas pessoas na sua frente
+  if (!dentro) { $("#w2").textContent = "votação encerrada"; $("#e2").textContent = "no 2º turno, a seção fecha às 17h de Brasília."; return; }
+  $("#w2").textContent = cerca(a.total2[i] || 0);
+  const atendimento = (a.t2 || 0) + (a.me2 || 0), chance = a.o2[i] || 0;
+  const naFrente = atendimento ? Math.max(1, Math.round((a.seFila2[i] || 0) / atendimento)) : 1;
+  const pessoas = `${naFrente} ${naFrente === 1 ? "pessoa" : "pessoas"} na sua frente`;
+  $("#e2").textContent = `para votar, contando a fila. ${chance < 15 ? "Quase ninguém deve pegar fila." : chance < 60 ? `Às vezes, ${pessoas}.` : `Deve ter uns ${pessoas}.`}`;
 }
 
 const grafico = new Grafico($("#grafico"), {
@@ -161,14 +172,15 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   grafico.passeia(a.r2.melhor + JANELA / 2, primeira ? 1600 : 900);
   primeira = false;
 
-  // comparação: do momento em que chega até sair da seção, pior hora do 1º turno × melhor hora do 2º
+  // comparação: quanto tempo leva para votar (fila + urna), pior hora do 1º turno × melhor hora do 2º
   const media = (w, ini) => w.slice(ini, ini + JANELA).reduce((x, y) => x + y, 0) / JANELA;
-  const urna = a.t1 && a.t2 ? `<p class="compara-nota">Cada eleitor levou <b>${duracao(a.t1)}</b> na urna no 1º turno. No 2º, com ${r.dois ? "dois votos" : "um voto só"}, deve levar <b>${duracao(a.t2)}</b>.</p>` : "";
-  $("#compara").innerHTML = `<p class="compara-rot">Do momento em que você chega até sair da seção</p>
+  const urna = a.t1 && a.t2 ? ` No 1º turno, cada pessoa levava ${falado(a.t1)} só para votar. No 2º, com ${r.dois ? "dois votos" : "um voto só"}, deve levar ${falado(a.t2)}.` : "";
+  $("#compara").innerHTML = `<p class="compara-rot">Quanto tempo você leva para votar</p>
     <div class="compara-grade">
-      <div><span class="c-rot">1º turno, das ${hora(a.r1.pior, a.h0)} às ${hora(a.r1.pior + JANELA, a.h0)} (pior horário)</span><strong>${cerca(media(a.total1, a.r1.pior))}</strong></div>
-      <div class="c-2"><span class="c-rot">2º turno, das ${r.ini} às ${r.fim} (melhor horário)</span><strong>${cerca(media(a.total2, a.r2.melhor))}</strong></div>
-    </div>${urna}`;
+      <div><span class="c-rot">No 1º turno, no pior horário (${hora(a.r1.pior, a.h0)} às ${hora(a.r1.pior + JANELA, a.h0)})</span><strong>${cerca(media(a.total1, a.r1.pior))}</strong></div>
+      <div class="c-2"><span class="c-rot">No 2º turno, no melhor horário (${r.ini} às ${r.fim})</span><strong>${cerca(media(a.total2, a.r2.melhor))}</strong></div>
+    </div>
+    <p class="compara-nota">Isso conta a fila e o tempo na urna.${urna}</p>`;
   $("#extras").hidden = false;
 
   // tabela
