@@ -118,7 +118,6 @@ function guardaRecente(ctx) {
 
 let atual = null;
 async function abre(rota, { gesto = false, empurra = true } = {}) {
-  if (gesto) { const f = $("#fim"); f.classList.remove("mostra"); void f.offsetWidth; f.classList.add("mostra"); }
   let ctx;
   try { ctx = await resolve(json, rota); } catch {
     $("#sub").innerHTML = "Não encontramos essa seção. Confira a zona e a seção no título de eleitor ou no app e-Título.";

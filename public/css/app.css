@@ -236,18 +236,6 @@ h1 em { font-style: normal; color: var(--verde-texto); white-space: nowrap; }
   transform: translate(-50%, 0); top: auto; bottom: -2px;
 }
 
-.fim {
-  position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; opacity: 0;
-  font-weight: 800; font-size: clamp(90px, 18vw, 220px); letter-spacing: .02em; color: var(--tinta);
-}
-.fim.mostra { animation: fim 1.15s var(--suave) forwards; }
-@keyframes fim {
-  0% { opacity: 0; transform: scale(.8); }
-  18% { opacity: 1; transform: scale(1); }
-  70% { opacity: 1; transform: scale(1); }
-  100% { opacity: 0; transform: scale(1.04); filter: blur(6px); }
-}
-@media (prefers-reduced-motion: reduce) { .fim.mostra { animation: none; } }
 
 /* leitura do horário (régua): espera e tempo na urna nos dois turnos */
 .leitura {
