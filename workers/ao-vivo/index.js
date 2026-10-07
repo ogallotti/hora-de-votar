@@ -4,8 +4,9 @@
 // contagem para a central (Total), que soma e devolve o total. Nada é gravado em disco: é só memória.
 import { DurableObject } from "cloudflare:workers";
 
-const VALIDADE = 75_000; // ms sem sinal para a aba deixar de contar
+const VALIDADE = 200_000; // ms sem sinal para a aba deixar de contar (o site manda sinal a cada 90 s)
 const RELATO = 10_000;   // ms entre relatos de cada parte para a central
+const LIMITE = 50_000;   // abas por parte (32 partes: até 1,6 milhão de abas)
 
 export class Presenca extends DurableObject {
   constructor(ctx, env) {
@@ -17,7 +18,8 @@ export class Presenca extends DurableObject {
 
   async bate(id, parte) {
     const agora = Date.now();
-    this.abas.set(id, agora);
+    // proteção: uma parte nunca guarda mais que LIMITE abas (quem inventar códigos aos milhões não estoura a memória)
+    if (this.abas.has(id) || this.abas.size < LIMITE) this.abas.set(id, agora);
     if (agora - this.relatado > RELATO) {
       this.relatado = agora;
       for (const [k, t] of this.abas) if (agora - t > VALIDADE) this.abas.delete(k);

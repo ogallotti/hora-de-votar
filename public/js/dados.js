@@ -1,7 +1,6 @@
 // Monta o que uma página de seção ou de local precisa, e os textos de compartilhamento.
 // Puro (recebe a função que carrega JSON): roda no navegador e nas funções da Cloudflare (prévia de links).
 import { analisa, hora, GOV2, JANELA } from "./modelo.js";
-import { minutosDe } from "./tempos.js";
 
 const fmt = (n) => n.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -15,7 +14,7 @@ export async function resolve(carrega, rota) {
     const local = mun.locais.find((x) => x.id === rota.lid);
     if (!local?.ns) throw new Error("local não encontrado");
     const secoes = await carrega(`/data/z/${+rota.cd}-${local.z}.json`).catch(() => ({}));
-    return { mun, local, d: somaLocal(local, secoes), perfil, cal, eleitores: eleitoresDe(secoes, local.s) };
+    return { mun, local, d: somaLocal(local, secoes), perfil, cal };
   }
   const z = +rota.z, s = +rota.s;
   const local = mun.locais.find((x) => x.z === z && x.s.includes(s));
@@ -23,11 +22,11 @@ export async function resolve(carrega, rota) {
   let d = secoes[s], nota = "";
   if (d?.p) { nota = `A seção ${s} vota na mesma urna da seção ${d.p}.`; d = secoes[d.p]; }
   if (!d && local?.ns) {
-    return { mun, local, d: somaLocal(local, secoes), secao: s, z, perfil, cal, eleitores: eleitoresDe(secoes, local.s),
+    return { mun, local, d: somaLocal(local, secoes), secao: s, z, perfil, cal,
       nota: "Não há log publicado para a sua seção (urna substituída ou voto em cédula). Mostramos a média do local." };
   }
   if (!d) throw new Error("seção não encontrada");
-  return { mun, local, d, secao: s, z, perfil, cal, nota, eleitores: minutosDe(d.t) };
+  return { mun, local, d, secao: s, z, perfil, cal, nota };
 }
 
 /** Curva do local: soma das urnas das suas seções (agregadas contam na principal); tempos medianos vêm do local. */
@@ -39,11 +38,6 @@ function somaLocal(local, secoes) {
   return { ...local, v, q, ns: urnas.length || local.ns, n: urnas.reduce((a, d) => a + (d.n || 0), 0) };
 }
 
-/** Minuto de cada eleitor das seções de um local (seções agregadas votam na urna da principal: conta uma vez). */
-function eleitoresDe(secoes, lista) {
-  const urnas = new Set(lista.map((s) => (secoes[s]?.p ?? s)));
-  return [...urnas].flatMap((s) => minutosDe(secoes[s]?.t)).sort((a, b) => a - b);
-}
 
 export const caminhoDe = (ctx) => (ctx.secao ? `/s/${ctx.mun.cd}/${ctx.z}/${ctx.secao}` : `/l/${ctx.mun.cd}/${ctx.local.id}`);
 

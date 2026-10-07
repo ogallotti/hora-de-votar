@@ -51,6 +51,7 @@ main { flex: 1; }
 button, input { font: inherit; color: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
+.sprite { display: none; }
 .ic { width: 1.15em; height: 1.15em; flex-shrink: 0; }
 .nw { white-space: nowrap; }
 :focus-visible { outline: 2px solid var(--verde); outline-offset: 3px; border-radius: 8px; }

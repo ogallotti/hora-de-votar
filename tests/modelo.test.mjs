@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { espera, minutos, simula2, procura, demanda, horarios, hora, duracao, fator, chanceFila, analisa, OFICIAIS, JANELA, FAIXA_MIN } from "../public/js/modelo.js";
-import { minutosDe } from "../public/js/tempos.js";
 
 const H = 60 / FAIXA_MIN; // faixas por hora
 const faixa = (h) => Math.round(h * H); // h horas depois da abertura → índice da faixa
@@ -60,10 +59,6 @@ test("formatos", () => {
   assert.equal(fator(114, 45, 20).toFixed(2), "2.06");
 });
 
-test("minuto de cada eleitor: base 62 com escape para intervalos longos", () => {
-  assert.deepEqual(minutosDe("0a1~2s.0"), [0, 10, 11, 111, 111]);
-  assert.deepEqual(minutosDe(""), []);
-});
 
 test("analisa uma seção (urna no limite boa parte do dia)", () => {
   const v = Array(OFICIAIS).fill(0).map((_, i) => 1 + (i % 3 === 0 ? 1 : 0));

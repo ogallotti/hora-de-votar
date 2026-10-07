@@ -1,8 +1,20 @@
+# Cabeçalhos de segurança e cache (Cloudflare Pages). As páginas /s/* e /l/* vêm da função (lib/pagina.js),
+# que aplica os mesmos cabeçalhos de segurança.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Cross-Origin-Opener-Policy: same-origin
+
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+/bandeiras/*
+  Cache-Control: public, max-age=31536000, immutable
+/icone-*
+  Cache-Control: public, max-age=604800
+# dados: a URL leva a versão do formato (VERSAO_DADOS em app.js); 1 dia no navegador, e serve o antigo enquanto revalida
 /data/*
-  Cache-Control: public, max-age=3600, stale-while-revalidate=86400
-/*
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
-  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

@@ -13,7 +13,7 @@ const reduz = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // Versão do formato dos dados: mudar sempre que public/data/ mudar de formato (ex.: faixas de 15 → 5 min).
 // Vai na URL para o navegador não misturar arquivo antigo em cache com código novo.
-const VERSAO_DADOS = "10min-2";
+const VERSAO_DADOS = "10min-3";
 const cache = new Map();
 function json(url) {
   if (!cache.has(url)) {
@@ -94,9 +94,7 @@ async function mostraBrasil(modo) {
   const a = (analise = analisa(br, 8, br.perfil, br.cal));
   h0 = 8;
   contagem = br.v;
-  const total = br.v.reduce((x, y) => x + y, 0);
-  const escala = Math.max(1, Math.round(total / 1400 / 10000) * 10000); // ~1.400 pontos, valor redondo
-  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, escala, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, modo);
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: br.v, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, modo);
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
   $("#rotulo-grafico").innerHTML = `${bandeira("BR", "Brasil")}<span><b>Média do Brasil</b> · ${br.ns.toLocaleString("pt-BR")} urnas no horário de Brasília</span>`;
   return a;
@@ -167,7 +165,7 @@ async function abre(rota, { gesto = false, empurra = true } = {}) {
   // onde: uma vez só, em cima do gráfico (escola, seção, cidade), com a bandeira do estado
   $("#rotulo-grafico").innerHTML = bandeira(ctx.mun.uf) + `<span>${r.lugar.map((t, i) => (i === 0 && ctx.local ? `<b>${esc(t)}</b>` : esc(t))).join(" · ")}</span>`;
   contagem = ctx.d.v;
-  grafico.define({ h0, o1: a.o1, o2: a.o2, eleitores: ctx.eleitores, v: ctx.d.v, escala: 1, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, primeira ? "entrada" : "transforma");
+  grafico.define({ h0, o1: a.o1, o2: a.o2, v: ctx.d.v, melhor: a.r2.melhor, pior: a.r2.pior, pior2: a.r2.pior2, notas: notas(a.o2, a.r2) }, primeira ? "entrada" : "transforma");
   $("#arraste").textContent = "Cada ponto é 1 em cada 20 eleitores. Arraste pelo gráfico para ver cada horário.";
   grafico.passeia(a.r2.melhor + JANELA / 2, primeira ? 1600 : 900);
   primeira = false;
@@ -272,7 +270,6 @@ $("#baixar").addEventListener("click", async () => {
 
 // ------------------------------------------------------------ rotas
 function rotaDaUrl() {
-  if (window.__ROTA__) return window.__ROTA__;
   const p = location.pathname.split("/").filter(Boolean);
   if (p[0] === "s" && p.length === 4) return { tipo: "s", cd: p[1], z: p[2], s: p[3] };
   if (p[0] === "l" && p.length === 3) return { tipo: "l", cd: p[1], lid: p[2] };
@@ -281,7 +278,7 @@ function rotaDaUrl() {
   if (h.length === 2) return { tipo: "l", cd: h[0], lid: h[1] };
   return null;
 }
-window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = rotaDaUrl(); r ? abre(r, { empurra: false }) : capa(); });
+window.addEventListener("popstate", () => { const r = rotaDaUrl(); r ? abre(r, { empurra: false }) : capa(); });
 
 // ------------------------------------------------------------ pessoas no site agora
 // Sinal de presença a cada 30 s enquanto a aba está visível; o código da aba é aleatório e não identifica ninguém.
@@ -303,14 +300,16 @@ window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = ro
     };
     requestAnimationFrame(passo);
   };
+  // economia (plano gratuito da Cloudflare): 1º sinal só depois de 10 s na página, depois a cada 90 s, até 15 min
+  const inicio = Date.now();
   const bate = () => {
-    if (document.visibilityState !== "visible") return;
+    if (document.visibilityState !== "visible" || Date.now() - inicio > 15 * 60000) return;
     fetch("/api/ao-vivo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) })
       .then((r) => (r.ok ? r.json() : { agora: null })).then((d) => mostra(d.agora)).catch(() => mostra(null));
   };
-  bate();
-  t = setInterval(bate, 30000);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") bate(); });
+  setTimeout(bate, 10000);
+  t = setInterval(bate, 90000);
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && Date.now() - inicio > 10000) bate(); });
 })();
 
 // ------------------------------------------------------------ anúncios: dois slides que se alternam
@@ -337,7 +336,17 @@ window.addEventListener("popstate", () => { window.__ROTA__ = null; const r = ro
 // ------------------------------------------------------------ início
 let busca = null, municipios = [];
 const ufGeo = { uf: null };
-fetch("/api/onde").then((r) => (r.ok ? r.json() : {})).then((d) => { ufGeo.uf = d.uf || null; }).catch(() => {});
+// estado aproximado (pela conexão), só quando a busca precisar dele, e uma vez por aba
+let pedidoUf = null;
+function pedeUf() {
+  if (pedidoUf) return;
+  try { const g = sessionStorage.getItem("uf"); if (g) { ufGeo.uf = g === "-" ? null : g; pedidoUf = true; return; } } catch { /* sem armazenamento */ }
+  pedidoUf = fetch("/api/onde").then((r) => (r.ok ? r.json() : {})).then((d) => {
+    ufGeo.uf = d.uf || null;
+    try { sessionStorage.setItem("uf", d.uf || "-"); } catch { /* ignora */ }
+  }).catch(() => {});
+}
+$("#q").addEventListener("input", pedeUf, { once: true });
 json("/data/municipios.json").then((ms) => {
   municipios = ms.map(([uf, cd, nome, h, ns, g]) => ({ uf, cd, nome, h0: h, ns, g }));
   busca = criaBusca({
@@ -356,5 +365,5 @@ $("#dica-busca").addEventListener("click", (e) => {
 const inicial = rotaDaUrl();
 if (inicial) {
   if (location.hash) history.replaceState(null, "", location.pathname.replace(/\/$/, "") || "/");
-  abre(inicial, { empurra: !window.__ROTA__ && !location.pathname.startsWith(`/${inicial.tipo}/`) });
+  abre(inicial, { empurra: !location.pathname.startsWith(`/${inicial.tipo}/`) });
 } else capa("entrada");

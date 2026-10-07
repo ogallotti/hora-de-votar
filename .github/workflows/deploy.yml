@@ -37,10 +37,14 @@ jobs:
           cache: pnpm
       # functions/ (prévia de links e imagem por seção) usa @cf-wasm/og; o wrangler empacota junto
       - run: pnpm install --frozen-lockfile
+      # 1º o worker do contador "online" (Durable Objects), porque o site depende do binding dele
+      - name: Worker do contador (workers/ao-vivo)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --config workers/ao-vivo/wrangler.toml
       - name: Publicar public/ e functions/ no Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          packageManager: pnpm
-          command: pages deploy public --project-name=hora-de-votar --branch=main
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler pages deploy public --project-name=hora-de-votar --branch=main
