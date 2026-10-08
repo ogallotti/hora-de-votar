@@ -5,6 +5,7 @@
 <title>Hora de votar · vídeo de lançamento</title>
 <!-- Composição do vídeo (1080×1920, 30 fps). Linha do tempo GSAP pausada: o render (video/render.mjs) chama
      window.quadro(t) a cada quadro. Cortes presos à grade de batidas da trilha: b(k) = 0,034 + 0,5·k s. -->
+<script>if (new URLSearchParams(location.search).get("f") === "16x9") document.documentElement.classList.add("largo");</script>
 <style>
 @font-face { font-family: Geist; src: url(../public/fonts/geist.woff2) format("woff2"); font-weight: 100 900; }
 @font-face { font-family: Archivo; src: url(../public/fonts/archivo-800.woff2) format("woff2"); font-weight: 800; }
@@ -41,6 +42,7 @@ canvas { position: absolute; inset: 0; }
 .fone .status i { display: inline-block; width: 52px; height: 24px; border-radius: 7px; border: 3px solid #0a0c0b; position: relative; }
 .fone .status i::after { content: ""; position: absolute; inset: 3px 12px 3px 3px; background: #0a0c0b; border-radius: 3px; }
 .fone .ilha { position: absolute; top: 44px; left: 50%; width: 190px; height: 54px; margin-left: -95px; border-radius: 30px; background: #0b0d0c; z-index: 2; }
+.fone-caixa { position: absolute; inset: 0; }
 .legenda-fone { position: absolute; top: 150px; left: 0; right: 0; text-align: center; }
 /* cartões da interface */
 .pilula { display: inline-flex; align-items: center; padding: 22px 40px; border-radius: 999px; font-size: 52px; font-weight: 640; color: #fff; }
@@ -71,6 +73,33 @@ canvas { position: absolute; inset: 0; }
 .url { font-size: 64px; font-weight: 560; letter-spacing: -0.02em; color: var(--tinta-2); min-height: 80px; }
 .data { font-size: 40px; font-weight: 560; color: var(--tinta-3); }
 .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+/* ------------------------------------------------------------ 16:9 (X, YouTube): mesmo roteiro, layout para tela larga */
+html.largo, html.largo body { width: 1920px; height: 1080px; }
+html.largo .gigante { font-size: 400px; }
+html.largo .t-g { font-size: 128px; }
+html.largo #quando-t { top: 110px !important; }
+html.largo #b1 { left: 230px !important; top: 300px !important; }
+html.largo #b2 { right: 240px !important; top: 390px !important; }
+html.largo #b3 { left: 380px !important; top: 560px !important; }
+html.largo #b4 { right: 330px !important; top: 650px !important; }
+html.largo #b5 { left: 700px !important; top: 830px !important; }
+html.largo .log { width: 1240px; height: 430px; }
+html.largo #c-urna .centro { gap: 34px !important; }
+html.largo .fone-caixa { inset: auto; left: 1150px; top: 96px; width: 760px; height: 1645px; transform: scale(.72); transform-origin: 0 0; }
+html.largo .fone { left: 0; top: 0; margin-left: 0; }
+html.largo .legenda-fone { top: 0; bottom: 0; left: 150px; right: auto; width: 820px; display: flex; align-items: center; text-align: left; }
+html.largo .legenda-fone .t-m { font-size: 96px; }
+html.largo #c-zap > .t-m { top: 120px !important; }
+html.largo .notif { left: 470px; right: 470px; }
+html.largo #n1 { top: 300px !important; }
+html.largo #n2 { top: 500px !important; }
+html.largo #n3 { top: 700px !important; }
+html.largo .marca { font-size: 120px; }
+html.largo .t-m { font-size: 88px; }
+html.largo .t-p { font-size: 54px; }
+html.largo .balao { font-size: 62px; padding: 30px 46px; }
+html.largo .cartao .num { font-size: 104px; }
+html.largo .pilula { font-size: 58px; }
 </style>
 </head>
 <body>
@@ -100,7 +129,7 @@ canvas { position: absolute; inset: 0; }
 <!-- 6. resposta: o site de verdade -->
 <section class="cena" id="c-fone">
   <div class="legenda-fone"><p class="t-m" id="lf">Digite sua seção.</p></div>
-  <div class="fone" id="fone"><div class="tela"><div class="ilha"></div><div class="status"><span>10:00</span><i></i></div><img id="clipe" alt=""></div></div></section>
+  <div class="fone-caixa"><div class="fone" id="fone"><div class="tela"><div class="ilha"></div><div class="status"><span>10:00</span><i></i></div><img id="clipe" alt=""></div></div></div></section>
 <section class="cena" id="c-va"><div class="centro" style="gap:30px"><p class="t-p">No 2º turno,</p><p class="t-g">Vá entre<br><span class="verde">12h20 e 13h20</span></p></div></section>
 <section class="cena" id="c-sua"><div class="centro" style="gap:60px">
   <p class="t-m" id="sua-t">Sua seção…</p>
@@ -128,6 +157,8 @@ canvas { position: absolute; inset: 0; }
 <script src="vendor/gsap.min.js"></script>
 <script>
 const b = (k) => 0.034 + 0.5 * k; // batida k da trilha (120 BPM)
+const LARGO = document.documentElement.classList.contains("largo"); // 16:9 (cena.html?f=16x9)
+const W = LARGO ? 1920 : 1080, H = LARGO ? 1080 : 1920;
 const DURACAO = 33.5;
 const $ = (s) => document.querySelector(s);
 const tl = gsap.timeline({ paused: true });
@@ -228,7 +259,7 @@ const CLIPE = { ini: b(32), fim: b(41), de: 0.55, ate: 5.1 }; // trecho do clipe
 const noVideo = (s) => CLIPE.ini + ((s - CLIPE.de) / (CLIPE.ate - CLIPE.de)) * (CLIPE.fim - CLIPE.ini);
 mostra("#c-fone", b(32), b(41) + 0.25);
 flash(b(32));
-tl.fromTo("#fone", { y: 900, rotate: 4 }, { y: 0, rotate: 0, duration: 0.6, ease: "expo.out" }, b(32));
+tl.fromTo("#fone", { y: LARGO ? 1500 : 900, rotate: 4 }, { y: 0, rotate: 0, duration: 0.6, ease: "expo.out" }, b(32));
 som("whoosh2.mp3", b(32) - 0.1, 0.8);
 // no clipe gravado, "410 undb" entra entre 0,6 s e 1,4 s (uma letra a cada 3 quadros)
 som("digitar.mp3", noVideo(0.6), 0.5, noVideo(1.4) - noVideo(0.6));
@@ -237,7 +268,7 @@ legendas.forEach(([t, txt], i) => {
   tl.set("#lf", { textContent: txt }, t);
   if (i) tl.fromTo("#lf", { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.25, ease: "expo.out", immediateRender: false }, t);
 });
-tl.to("#fone", { scale: 1.75, y: -330, duration: 0.5, ease: "power3.in" }, b(40.5));
+tl.to("#fone", { ...(LARGO ? { scale: 1.9, x: -620, y: -140 } : { scale: 1.75, y: -330 }), duration: 0.5, ease: "power3.in" }, b(40.5));
 mostra("#c-va", b(41) + 0.25, b(44));
 tl.from("#c-va .t-g", { scale: 0.8, opacity: 0, duration: 0.35, ease: "back.out(1.6)" }, b(41) + 0.25);
 som("whoosh1.mp3", b(41), 0.7);
@@ -286,22 +317,23 @@ digita("#fim-url", "horadevotar.com", CONF + 0.45, 0.55, 0.35, false); // termin
 
 // ---------------------------------------------------------------- pontos (canvas): cada ponto é gente
 const cv = $("#cv-gente"), ctx = cv.getContext("2d");
-const COLS = 22, ROWS = 40, PASSO = 1080 / COLS, R = 15;
+cv.width = W; cv.height = H;
+const COLS = LARGO ? 40 : 22, ROWS = LARGO ? 22 : 40, PASSO = W / COLS, R = 15;
 const semente = (i) => { const x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x); };
 const PONTOS = [];
 for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
   const i = r * COLS + c;
-  PONTOS.push({ x: PASSO / 2 + c * PASSO, y: 20 + r * (1920 / ROWS), ent: semente(i), fila: semente(i + 999) < 0.9 });
+  PONTOS.push({ x: PASSO / 2 + c * PASSO, y: 20 + r * (H / ROWS), ent: semente(i), fila: semente(i + 999) < 0.9 });
 }
 const VERM = ["#e23a2e", "#f28a1f", "#eab308"];
 function pontos(t) {
-  ctx.clearRect(0, 0, 1080, 1920);
+  ctx.clearRect(0, 0, W, H);
   const t0 = b(6), tc = b(9);
   for (const p of PONTOS) {
     const a = Math.min(1, Math.max(0, (t - t0 - p.ent * 0.9) / 0.15));
     if (!a) continue;
     // na virada (9 em cada 10), a cor corre da esquerda para a direita
-    const virou = t > tc + (p.x / 1080) * 0.35;
+    const virou = t > tc + (p.x / W) * 0.35;
     ctx.globalAlpha = a;
     ctx.fillStyle = virou ? (p.fila ? VERM[Math.floor(p.ent * 3)] : "#0fa84f") : "#a9c6ee";
     const r = R * (0.6 + 0.4 * a) * (virou && t < tc + 0.7 ? 1.12 : 1);

@@ -1,13 +1,16 @@
-// Renderiza video/cena.html em MP4 1080×1920 a 30 fps, com a trilha e os efeitos sonoros.
+// Renderiza video/cena.html em MP4 1080×1920 (ou 1920×1080 com --16x9) a 30 fps, com a trilha e os efeitos sonoros.
 // Uso: node video/render.mjs [base] [--previa]   (base padrão http://127.0.0.1:4188, servindo a raiz do repositório)
 //   --previa: só uma folha de contato (1 quadro a cada 0,5 s), sem áudio
-// Saída: video/saida/hora-de-votar-lancamento.mp4
+// Saída: video/saida/hora-de-votar-lancamento.mp4 (ou hora-de-votar-lancamento-16x9.mp4)
 import { chromium } from "playwright-core";
 import { mkdirSync, rmSync, existsSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 
 const args = process.argv.slice(2);
 const previa = args.includes("--previa");
+const largo = args.includes("--16x9");
+const [VW, VH] = largo ? [1920, 1080] : [1080, 1920];
+const NOME = `hora-de-votar-lancamento${largo ? "-16x9" : ""}`;
 const BASE = args.find((a) => a.startsWith("http")) || "http://127.0.0.1:4188";
 const FPS = 30;
 const raiz = new URL("./", import.meta.url).pathname;
@@ -16,9 +19,9 @@ rmSync(pasta, { recursive: true, force: true });
 mkdirSync(pasta, { recursive: true });
 
 const b = await chromium.launch();
-const p = await b.newPage({ viewport: { width: 1080, height: 1920 }, deviceScaleFactor: 1 });
+const p = await b.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 1 });
 p.on("pageerror", (e) => console.error("pageerror:", e.message));
-await p.goto(`${BASE}/video/cena.html`, { waitUntil: "networkidle" });
+await p.goto(`${BASE}/video/cena.html${largo ? "?f=16x9" : ""}`, { waitUntil: "networkidle" });
 await p.evaluate(() => window.pronto);
 const { DURACAO, SONS, FIM_TRILHA } = await p.evaluate(() => ({ DURACAO: window.DURACAO, SONS: window.SONS, FIM_TRILHA: window.FIM_TRILHA }));
 const total = Math.round(DURACAO * FPS);
@@ -32,7 +35,7 @@ await b.close();
 
 const saida = `${raiz}saida/`;
 if (previa) {
-  execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${pasta}%04d.png`, "-vf", "scale=216:-1,tile=10x6", "-frames:v", "1", `${saida}previa.png`]);
+  execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${pasta}%04d.png`, "-vf", largo ? "scale=320:-1,tile=8x8" : "scale=216:-1,tile=10x6", "-frames:v", "1", `${saida}previa${largo ? "-16x9" : ""}.png`]);
   console.log(`prévia: ${n} quadros → ${saida}previa.png`);
   process.exit(0);
 }
@@ -60,5 +63,5 @@ execFileSync("ffmpeg", ["-v", "error", "-y", "-i", `${saida}mix.wav`, "-af",
   "-c:a", "pcm_s16le", `${saida}audio.wav`]);
 execFileSync("ffmpeg", ["-v", "error", "-y", "-framerate", String(FPS), "-i", `${pasta}%04d.jpg`, "-i", `${saida}audio.wav`,
   "-c:v", "libx264", "-preset", "slow", "-crf", "17", "-pix_fmt", "yuv420p", "-profile:v", "high", "-movflags", "+faststart",
-  "-c:a", "aac", "-b:a", "192k", "-shortest", `${saida}hora-de-votar-lancamento.mp4`]);
-console.log(`vídeo: ${n} quadros, ${SONS.length} efeitos → ${saida}hora-de-votar-lancamento.mp4`);
+  "-c:a", "aac", "-b:a", "192k", "-shortest", `${saida}${NOME}.mp4`]);
+console.log(`vídeo: ${n} quadros, ${SONS.length} efeitos → ${saida}${NOME}.mp4`);
