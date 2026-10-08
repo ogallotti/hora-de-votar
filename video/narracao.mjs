@@ -35,26 +35,33 @@ export function plano(duracaoOriginal, folga = 0.15) {
     pausas.push([+p.toFixed(3), e]);
     pausas.sort((x, y) => x[0] - y[0]);
   };
-  const saida = [];
-  for (const f of falas) {
-    const [[w0, e0], ...resto] = f.ancoras;
+  const saida = [], legendas = [];
+  for (const f0 of falas) {
+    // falas aparadas (video/apara_voz.py): o tempo de cada palavra desconta os silêncios cortados e a aceleração
+    const novo = (w) => (w - (f0.cortes || []).reduce((s, [x, y]) => s + Math.max(0, Math.min(w, y) - x), 0)) / (f0.tempo || 1);
+    const f = { ...f0, fim: novo(f0.fim), ancoras: f0.ancoras.map(([w, e]) => [novo(w), e]) };
+    const [[w0, e0]] = f.ancoras;
     const o0 = momento(e0);
-    // a fala não começa antes de a anterior acabar: se for preciso, a cena espera
-    segura(o0, fimAnterior + folga + w0 - ADIANTA - warp(o0));
-    ultimaAncora = o0;
-    const inicio = Math.max(warp(o0) - w0 + ADIANTA, fimAnterior + folga);
-    for (const [w, e] of resto) {
-      const o = momento(e);
-      segura(o, inicio + w - ADIANTA - warp(o));
-      ultimaAncora = o;
+    // nenhuma âncora pode ficar atrasada (a imagem só sabe esperar, não adiantar). Tenta um começo para a fala, segura a
+    // imagem onde ela chegaria cedo demais e confere; se o arredondamento das pausas atrasou alguma, começa mais tarde
+    const antes = pausas.slice(), ancoraAntes = ultimaAncora;
+    let inicio = Math.max(fimAnterior + folga, ...f.ancoras.map(([w, e]) => warp(momento(e)) - w + ADIANTA));
+    for (let volta = 0; volta < 8; volta++) {
+      pausas.length = 0; pausas.push(...antes); ultimaAncora = ancoraAntes;
+      for (const [w, e] of f.ancoras) { const o = momento(e); segura(o, inicio + w - ADIANTA - warp(o)); ultimaAncora = o; }
+      const atraso = Math.max(...f.ancoras.map(([w, e]) => warp(momento(e)) - (inicio + w - 0.05)));
+      if (atraso <= 0) break;
+      inicio += atraso;
     }
+    void o0;
     fimAnterior = inicio + f.fim;
     // "segura": a cena desse ponto só segue depois de a fala acabar
     if (f.segura) { const o = momento(f.segura); segura(o, fimAnterior + 0.2 - warp(o)); ultimaAncora = o; }
     saida.push([f.arq, +inicio.toFixed(3)]);
+    for (const [w, txt] of f0.legendas || []) legendas.push([+(inicio + novo(w) - ADIANTA).toFixed(3), txt]);
   }
   const duracao = Math.max(warp(duracaoOriginal), fimAnterior + 0.7);
-  return { pausas, falas: saida, duracao: +duracao.toFixed(3), warp };
+  return { pausas, falas: saida, legendas, duracao: +duracao.toFixed(3), warp };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

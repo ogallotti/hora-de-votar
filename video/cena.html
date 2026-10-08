@@ -105,7 +105,7 @@ html.largo .pilula { font-size: 58px; }
 <body>
 <!-- 1. gancho -->
 <section class="cena" id="c-data"><div class="centro"><p class="t-m" id="data-t">25 de outubro.</p></div></section>
-<section class="cena" id="c-fila"><div class="centro"><p class="gigante" id="fila-t" style="font-size:330px">FILA?</p></div></section>
+<section class="cena" id="c-fila"><div class="centro"><p class="t-m" id="fila-pre" hidden>Vai pegar</p><p class="gigante" id="fila-t" style="font-size:330px">FILA?</p></div></section>
 <section class="cena" id="c-denovo"><div class="centro"><p class="t-g">De novo?</p></div></section>
 <!-- 2. lacuna: cada ponto é gente -->
 <section class="cena" id="c-gente"><canvas id="cv-gente" width="1080" height="1920"></canvas>
@@ -158,6 +158,20 @@ html.largo .pilula { font-size: 58px; }
 <script>
 const b = (k) => 0.034 + 0.5 * k; // batida k da trilha (120 BPM)
 const LARGO = document.documentElement.classList.contains("largo"); // 16:9 (cena.html?f=16x9)
+// narrado (cena.html?narrado=1): o texto na tela é o que a narradora diz; o que ela não diz sai da tela
+const NARRADO = new URLSearchParams(location.search).get("narrado") === "1";
+if (NARRADO) {
+  const tx = (sel, t) => { document.querySelector(sel).textContent = t; };
+  document.querySelector("#fila-pre").hidden = false;
+  tx("#fila-t", "FILA");
+  tx("#c-denovo .t-g", "de novo?");
+  tx("#contador", "No 1º turno,"); document.querySelector("#gente-sub").hidden = true;
+  tx("#anos-a", "Somando tudo, foram"); tx("#anos-b", "anos na cabine.");
+  tx("#quando-t", "A dúvida de sempre:"); tx("#b1", "Vou cedo?");
+  for (const id of ["#b3", "#b4", "#b5", "#sua-a", "#sua-c"]) document.querySelector(id).style.display = "none";
+  tx("#urna-b", "Ela grava a hora de cada eleitor.");
+  tx("#sua-t", "Na sua seção,");
+}
 const W = LARGO ? 1920 : 1080, H = LARGO ? 1080 : 1920;
 const DURACAO = 33.5;
 const $ = (s) => document.querySelector(s);
@@ -195,10 +209,10 @@ som("pop1.mp3", b(4), 0.6);
 // ---------------------------------------------------------------- 2. lacuna: gente (3 a 6 s)
 mostra("#c-gente", b(6), b(12));
 tl.from("#gente-caixa", { scale: 0.85, opacity: 0, duration: 0.4, ease: "back.out(1.6)" }, b(6));
-contador("#contador", 124933451, b(6), 1.1, 0.55);
+if (!NARRADO) contador("#contador", 124933451, b(6), 1.1, 0.55);
 tl.to("#gente-sub", { opacity: 0, duration: 0.12 }, b(9) - 0.12);
 tl.set("#contador", { textContent: "9 em cada 10", color: "#e23a2e" }, b(9));
-tl.set("#gente-sub", { textContent: "pegaram fila", opacity: 1 }, b(9));
+tl.set("#gente-sub", { textContent: NARRADO ? "eleitores pegaram fila" : "pegaram fila", opacity: 1, ...(NARRADO ? { display: "block" } : {}) }, b(9));
 tl.from("#contador", { scale: 1.25, duration: 0.35, ease: "back.out(2)", immediateRender: false }, b(9));
 som("pop2.mp3", b(9), 0.6);
 som("multidao.mp3", b(9), 0.35, b(12) - b(9));
@@ -214,7 +228,7 @@ som("whoosh2.mp3", b(16) - 0.15, 0.6);
 // ---------------------------------------------------------------- 4. bagunça (8 a 12 s, o bumbo entra)
 mostra("#c-quando", b(16), b(24));
 tl.from("#quando-t", { y: -40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(16));
-["#b1", "#b2", "#b3", "#b4", "#b5"].forEach((id, i) => {
+["#b1", "#b2", "#b3", "#b4", "#b5"].slice(0, NARRADO ? 2 : 5).forEach((id, i) => {
   tl.fromTo(id, { scale: 0, opacity: 0, rotate: i % 2 ? 6 : -6 }, { scale: 1, opacity: 1, rotate: i % 2 ? -2 : 2, duration: 0.35, ease: "back.out(2.2)" }, b(17 + i));
   som(i % 2 ? "pop2.mp3" : "pop1.mp3", b(17 + i), 0.55);
 });
@@ -247,7 +261,7 @@ LOG.forEach(([h, txt], i) => {
   tl.from(d, { opacity: 0, x: -20, duration: 0.12, immediateRender: false }, t);
 });
 som("digitar.mp3", b(25.5), 0.35, ultimaLinha + 0.12 - b(25.5));
-tl.from("#urna-b", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(28));
+tl.from("#urna-b", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, NARRADO ? b(25.5) : b(28));
 mostra("#c-lemos", b(30), b(32));
 tl.from("#c-lemos .t-m", { y: 40, opacity: 0, duration: 0.3, ease: "expo.out" }, b(30));
 // o carimbo cai na pausa da trilha
@@ -275,7 +289,7 @@ som("whoosh1.mp3", b(41), 0.7);
 
 mostra("#c-sua", b(44), b(48));
 tl.from("#sua-t", { y: 40, opacity: 0, duration: 0.25, ease: "expo.out" }, b(44));
-[["#sua-a", b(45)], ["#sua-b", b(46)], ["#sua-c", b(47)]].forEach(([id, t], i) => {
+[["#sua-a", b(45)], ["#sua-b", b(46)], ["#sua-c", b(47)]].filter(([id]) => !NARRADO || id === "#sua-b").forEach(([id, t], i) => {
   tl.from(id, { scale: 0.4, opacity: 0, y: 40, duration: 0.3, ease: "back.out(2)" }, t);
   som(i % 2 ? "pop2.mp3" : "pop1.mp3", t, 0.6);
 });
@@ -367,7 +381,16 @@ function original(t) {
   }
   return t - soma;
 }
-window.quadro = async (tv) => { const t = original(tv); tl.seek(t, false); pontos(t); await clipe(t); };
+window.quadro = async (tv) => {
+  const t = original(tv);
+  tl.seek(t, false); pontos(t);
+  if (window.LEGENDAS && t >= b(32) && t < b(41) + 0.25) {
+    const atual = window.LEGENDAS.filter(([x]) => x <= tv).pop();
+    const lf = document.querySelector("#lf");
+    if (atual && lf.textContent !== atual[1]) lf.textContent = atual[1];
+  }
+  await clipe(t);
+};
 window.pronto = document.fonts.ready.then(() => true);
 </script>
 </body>

@@ -1,15 +1,279 @@
 {
   "voz": "Catarina Cordeiro (ElevenLabs v3, via Magnific), estabilidade 0,4",
-  "nota": "Cada fala tem âncoras [segundo da palavra na fala, momento da cena no vídeo original]. Momento: número = segundos; \"b:k\" = batida k da trilha (0,034 + 0,5·k); \"conf\" = tecla confirma da urna; +x soma segundos.",
+  "nota": "Cada fala tem âncoras [segundo da palavra na fala, momento da cena no vídeo original]. Momento: número = segundos; \"b:k\" = batida k da trilha (0,034 + 0,5·k); \"conf\" = tecla confirma da urna; +x soma segundos. \"legendas\" (fala do site): [segundo da palavra, texto da legenda do celular], trocada no tempo da palavra.",
   "falas": [
-    { "arq": "voz/v1-gancho.mp3", "fim": 3.284, "texto": "[curious] Vinte e cinco de outubro... [playfully] vai pegar fila de novo?", "ancoras": [[0.07, "0.10"], [2.82, "b:4"]] },
-    { "arq": "voz/v2-lacuna.mp3", "fim": 4.64, "texto": "[serious] No primeiro turno, nove em cada dez eleitores pegaram fila.", "ancoras": [[0.067, "b:6"], [1.467, "b:9"]] },
-    { "arq": "voz/v3-anos.mp3", "fim": 6.48, "texto": "[amazed] Somando tudo, foram trezentos e setenta e sete ANOS na cabine.", "ancoras": [[0.204, "b:12"], [1.74, "b:12+0.2"], [5.76, "b:14"]] },
-    { "arq": "voz/v4-duvida.mp3", "fim": 6.32, "texto": "[frustrated] E a dúvida de sempre: vou cedo? Depois do almoço? [sighs] Ninguém sabe.", "ancoras": [[0.073, "b:16"], [2.04, "b:17"], [2.66, "b:18"], [5.272, "b:22"]] },
-    { "arq": "voz/v5-urna.mp3", "fim": 6.96, "texto": "[intrigued] Mas a urna sabe. Ela grava a hora de cada eleitor... [confident] e nós lemos todas.", "ancoras": [[0.216, "b:24"], [2.32, "b:25"], [5.76, "b:30"]] },
-    { "arq": "voz/v6-site.mp3", "fim": 6.76, "texto": "[excited] Agora é só digitar a sua seção, ver como foi a fila e descobrir a melhor hora pra votar no segundo turno.", "ancoras": [[0.213, "b:32"]], "segura": "b:40.5" },
-    { "arq": "voz/v7-secao.mp3", "fim": 4.36, "texto": "[warmly] Na sua seção, pode ser menos de um minuto. [playfully] Manda pra família!", "ancoras": [[0.139, "b:44"], [1.813, "b:46"], [3.392, "b:48"]] },
-    { "arq": "voz/v8-busca.mp3", "fim": 5.439, "texto": "[upbeat] Funciona com a escola, o bairro ou a cidade. Grátis e sem cadastro.", "ancoras": [[0.202, "b:52"], [3.653, "b:58"]], "segura": "b:59.5" },
-    { "arq": "voz/v9-fim.mp3", "fim": 2.96, "texto": "[confident] Hora de votar. Ponto com.", "ancoras": [[0.072, "conf+0.95"]] }
+    {
+      "arq": "voz/v1-gancho-curta.mp3",
+      "fim": 3.284,
+      "texto": "[curious] Vinte e cinco de outubro... [playfully] vai pegar fila de novo?",
+      "ancoras": [
+        [
+          0.07,
+          "0.10"
+        ],
+        [
+          1.864,
+          "b:2"
+        ],
+        [
+          2.617,
+          "b:4"
+        ]
+      ],
+      "original": "voz/v1-gancho.mp3",
+      "cortes": [
+        [
+          1.445,
+          1.713
+        ],
+        [
+          3.392,
+          3.461
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v2-lacuna-curta.mp3",
+      "fim": 4.64,
+      "texto": "[serious] No primeiro turno, nove em cada dez eleitores pegaram fila.",
+      "ancoras": [
+        [
+          0.067,
+          "b:6"
+        ],
+        [
+          1.467,
+          "b:9"
+        ]
+      ],
+      "original": "voz/v2-lacuna.mp3",
+      "cortes": [
+        [
+          1.123,
+          1.251
+        ],
+        [
+          1.334,
+          1.437
+        ],
+        [
+          4.672,
+          5.84
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v3-anos-curta.mp3",
+      "fim": 6.48,
+      "texto": "[amazed] Somando tudo, foram trezentos e setenta e sete ANOS na cabine.",
+      "ancoras": [
+        [
+          0.204,
+          "b:12"
+        ],
+        [
+          1.74,
+          "b:12+0.2"
+        ],
+        [
+          5.76,
+          "b:14"
+        ]
+      ],
+      "original": "voz/v3-anos.mp3",
+      "cortes": [
+        [
+          4.137,
+          4.299
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v4-duvida-curta.mp3",
+      "fim": 6.32,
+      "texto": "[frustrated] E a dúvida de sempre: vou cedo? Depois do almoço? [sighs] Ninguém sabe.",
+      "ancoras": [
+        [
+          0.073,
+          "b:16"
+        ],
+        [
+          1.58,
+          "b:17"
+        ],
+        [
+          2.66,
+          "b:18"
+        ],
+        [
+          5.272,
+          "b:22"
+        ]
+      ],
+      "original": "voz/v4-duvida.mp3",
+      "cortes": [
+        [
+          1.621,
+          1.721
+        ],
+        [
+          2.72,
+          2.781
+        ],
+        [
+          4.095,
+          4.499
+        ],
+        [
+          4.644,
+          4.815
+        ],
+        [
+          4.932,
+          5.236
+        ],
+        [
+          6.313,
+          7.2
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v5-urna-curta.mp3",
+      "fim": 6.96,
+      "texto": "[intrigued] Mas a urna sabe. Ela grava a hora de cada eleitor... [confident] e nós lemos todas.",
+      "ancoras": [
+        [
+          0.216,
+          "b:24"
+        ],
+        [
+          1.787,
+          "b:25"
+        ],
+        [
+          5.76,
+          "b:30"
+        ]
+      ],
+      "original": "voz/v5-urna.mp3",
+      "cortes": [
+        [
+          1.675,
+          1.838
+        ],
+        [
+          4.692,
+          5.159
+        ],
+        [
+          7.089,
+          8.385
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v6-site-curta.mp3",
+      "fim": 6.76,
+      "texto": "[excited] Agora é só digitar a sua seção, ver como foi a fila e descobrir a melhor hora pra votar no segundo turno.",
+      "ancoras": [
+        [
+          0.213,
+          "b:32"
+        ]
+      ],
+      "segura": "b:40.5",
+      "original": "voz/v6-site.mp3",
+      "cortes": [],
+      "tempo": 1.1,
+      "legendas": [
+        [
+          0.213,
+          "Digite sua seção."
+        ],
+        [
+          2.62,
+          "Veja como foi a fila."
+        ],
+        [
+          3.984,
+          "E a melhor hora do 2º turno."
+        ]
+      ]
+    },
+    {
+      "arq": "voz/v7-secao-curta.mp3",
+      "fim": 4.36,
+      "texto": "[warmly] Na sua seção, pode ser menos de um minuto. [playfully] Manda pra família!",
+      "ancoras": [
+        [
+          0.139,
+          "b:44"
+        ],
+        [
+          1.813,
+          "b:46"
+        ],
+        [
+          3.392,
+          "b:48"
+        ]
+      ],
+      "original": "voz/v7-secao.mp3",
+      "cortes": [],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v8-busca-curta.mp3",
+      "fim": 5.439,
+      "texto": "[upbeat] Funciona com a escola, o bairro ou a cidade. Grátis e sem cadastro.",
+      "ancoras": [
+        [
+          0.202,
+          "b:52"
+        ],
+        [
+          3.653,
+          "b:58"
+        ]
+      ],
+      "segura": "b:59.5",
+      "original": "voz/v8-busca.mp3",
+      "cortes": [
+        [
+          3.428,
+          3.595
+        ],
+        [
+          5.454,
+          5.531
+        ]
+      ],
+      "tempo": 1.1
+    },
+    {
+      "arq": "voz/v9-fim-curta.mp3",
+      "fim": 2.96,
+      "texto": "[confident] Hora de votar. Ponto com.",
+      "ancoras": [
+        [
+          0.072,
+          "conf+0.95"
+        ]
+      ],
+      "original": "voz/v9-fim.mp3",
+      "cortes": [
+        [
+          1.857,
+          4.4
+        ]
+      ],
+      "tempo": 1.1
+    }
   ]
 }

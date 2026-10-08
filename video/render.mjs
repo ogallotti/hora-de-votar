@@ -22,12 +22,13 @@ mkdirSync(pasta, { recursive: true });
 const b = await chromium.launch();
 const p = await b.newPage({ viewport: { width: VW, height: VH }, deviceScaleFactor: 1 });
 p.on("pageerror", (e) => console.error("pageerror:", e.message));
-await p.goto(`${BASE}/video/cena.html${largo ? "?f=16x9" : ""}`, { waitUntil: "networkidle" });
+const qs = new URLSearchParams({ ...(largo ? { f: "16x9" } : {}), ...(narrado ? { narrado: "1" } : {}) }).toString();
+await p.goto(`${BASE}/video/cena.html${qs ? `?${qs}` : ""}`, { waitUntil: "networkidle" });
 await p.evaluate(() => window.pronto);
 const { DURACAO, SONS, FIM_TRILHA } = await p.evaluate(() => ({ DURACAO: window.DURACAO, SONS: window.SONS, FIM_TRILHA: window.FIM_TRILHA }));
 // narrado: a voz conduz (video/narracao.mjs); a cena congela nas pausas e tudo o que vem depois anda junto
 const P = narrado ? (await import("./narracao.mjs")).plano(DURACAO) : null;
-if (P) await p.evaluate((x) => { window.PAUSAS = x; }, P.pausas);
+if (P) await p.evaluate(([x, l]) => { window.PAUSAS = x; window.LEGENDAS = l; }, [P.pausas, P.legendas]);
 const warp = P ? P.warp : (t) => t;
 const DUR = P ? P.duracao : DURACAO;
 const total = Math.round(DUR * FPS);
