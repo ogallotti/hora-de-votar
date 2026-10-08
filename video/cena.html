@@ -357,7 +357,17 @@ async function clipe(t) {
 window.SONS = SONS;
 window.DURACAO = DURACAO;
 window.FIM_TRILHA = FIM;
-window.quadro = async (t) => { tl.seek(t, false); pontos(t); await clipe(t); };
+// versão narrada (render.mjs --narrado): window.PAUSAS = [[momento, segundos]], a cena congela enquanto a voz fala
+function original(t) {
+  let soma = 0;
+  for (const [p, e] of window.PAUSAS || []) {
+    if (t < p + soma) break;
+    if (t < p + soma + e) return p;
+    soma += e;
+  }
+  return t - soma;
+}
+window.quadro = async (tv) => { const t = original(tv); tl.seek(t, false); pontos(t); await clipe(t); };
 window.pronto = document.fonts.ready.then(() => true);
 </script>
 </body>
