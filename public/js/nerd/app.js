@@ -152,7 +152,24 @@ function escolher(level, id) {
   if (level === 'uf') { const p = getProps('uf', id); if (p) ctl.entrar(p.uf); return; }
   if (level === 'brmun') { const uf = BR.munUf.get(id); if (uf) ctl.entrar(uf.toLowerCase(), { sel: { level: 'municipio', id } }); return; }
   if (level === 'br') { ctl.irBrasil(); return; }
+  if (level === 'secaoBR') { irParaSecaoBuscada(id); return; }
   ctl.select(level, id, { fit: true });
+}
+
+/** Seção buscada pelo número numa cidade: abre o estado e escolhe a urna (com mais de uma zona, a primeira). */
+async function irParaSecaoBuscada(id) {
+  const [cd, z, nr] = id.split('|');
+  const uf = BR.munUf.get(+cd);
+  if (!uf) return;
+  await ctl.entrar(uf.toLowerCase());
+  const achadas = [];
+  for (let i = 0; i < D.n; i++) {
+    const li = D.sec.li[i];
+    if (D.sec.nr[i] === +nr && D.loc.mi[li] === +cd && (z === '' || D.loc.z[li] === +z)) achadas.push(i);
+  }
+  if (!achadas.length) { toast(`Não achamos a seção ${nr} em ${BR.munNome.get(+cd)}`); return; }
+  await ctl.select('secao', achadas[0]);
+  if (achadas.length > 1) toast(`Há ${achadas.length} seções ${nr} em ${BR.munNome.get(+cd)}; esta é a da zona ${D.loc.z[D.sec.li[achadas[0]]]}. Digite a zona para escolher outra.`, 5000);
 }
 
 /** Recorde do Brasil → abre o estado e vai até a urna. */

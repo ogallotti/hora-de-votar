@@ -19,7 +19,7 @@ export function abrirBusca({ onLugar, texto = '' }) {
   fecharBusca();
   const foco = document.activeElement;
   let sel = 0, itens = [];
-  const input = h('input', { class: 'pal-q', type: 'search', placeholder: 'Estado, cidade, bairro, escola…', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Buscar lugar', value: texto });
+  const input = h('input', { class: 'pal-q', type: 'search', placeholder: 'Cidade, escola, bairro ou seção (ex.: 410 são luís)', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Buscar lugar', value: texto });
   const lista = h('div', { class: 'pal-list', role: 'listbox' });
   const pal = h('div', { class: 'pal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Buscar lugar' },
     h('div', { class: 'pal-h' }, lupa(), input, h('button', { class: 'pal-x', type: 'button', onclick: fecharBusca, 'aria-label': 'Fechar' }, xis())),
@@ -40,7 +40,7 @@ export function abrirBusca({ onLugar, texto = '' }) {
     const q = input.value.trim();
     clear(lista);
     itens = []; sel = 0;
-    if (!q) { lista.append(h('div', { class: 'pal-vazio' }, 'Digite o nome de um estado, cidade, bairro ou local de votação.')); return; }
+    if (!q) { lista.append(h('div', { class: 'pal-vazio' }, 'Digite um estado, cidade, bairro, escola ou o número da seção (ex.: zona 3 seção 410 são luís).')); return; }
     for (const p of searchPlaces(q, 14)) {
       const i = itens.length;
       const it = { ...p, el: h('button', { type: 'button', role: 'option', class: 'row', 'aria-selected': String(i === sel), onclick: () => escolher(itens[i]), onmousemove: () => mover(i) },

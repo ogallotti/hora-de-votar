@@ -504,3 +504,18 @@ html.m .stats-7 .stat-v { font-size: 18px; }
 html.m .mapbar .crumbs { margin-top: 0; }
 html.m .legend { bottom: calc(var(--sheet-h, 56%) + 8px); }
 html.m .sheet[data-snap="peek"] .lede { display: none; } /* recolhida: título e resposta; o texto aparece ao abrir */
+
+/* anúncio (mesmos slides da página principal), no tema escuro */
+.an { position: relative; margin-top: 16px; border: 1px dashed var(--line-2); border-radius: 12px; overflow: hidden; }
+.an-trilho { display: flex; transition: transform .5s cubic-bezier(.16, 1, .3, 1); }
+.an-slide { flex: 0 0 100%; display: flex; align-items: center; gap: 10px; padding: 11px 40px 11px 12px; color: var(--ink-2); text-decoration: none; font-size: 12.5px; line-height: 1.35; min-width: 0; }
+.an-slide:hover .an-cta { color: var(--ink); }
+.an-rot { flex: none; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.an-txt { flex: 1; min-width: 0; }
+.an-txt b { color: var(--ink); font-weight: 600; }
+.an-cta { flex: none; font-weight: 600; color: #7fd6a2; text-decoration: underline; text-underline-offset: 3px; }
+.an-ig { width: 18px; height: 18px; flex: none; color: #e1306c; }
+.an-pontos { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 5px; }
+.an-pontos button { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 999px; background: var(--line-2); }
+.an-pontos button[aria-pressed="true"] { background: var(--ink-2); }
+@media (prefers-reduced-motion: reduce) { .an-trilho { transition: none; } }

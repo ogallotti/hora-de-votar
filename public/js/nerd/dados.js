@@ -325,6 +325,48 @@ export function searchPlaces(q, limit = 10) {
       }
     }
   }
+  hits.unshift(...buscaSecoes(q));
   hits.sort((a, b) => a.sc - b.sc || b.peso - a.peso);
   return hits.slice(0, limit);
+}
+
+// ---------------------------------------------------------------- busca de seções
+const PARAR = new Set(['zona', 'secao', 'sec', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'n', 'no', 'na']);
+/** "410", "seção 410", "zona 3 seção 410", "410 são luís", "410 undb": números viram zona/seção e as palavras filtram
+ *  por escola, bairro ou cidade. Dentro de um estado: as seções carregadas. Fora dele (ou noutra cidade): um item que abre
+ *  o estado e procura a seção (level 'secaoBR', id "cd|zona|seção"). */
+export function buscaSecoes(q) {
+  const s = norm(q);
+  const zm = s.match(/zona\s*(\d+)/), sm = s.match(/(?:secao|sec)\s*(\d+)/);
+  const nums = (s.match(/\d+/g) || []).map(Number);
+  let zona = zm ? +zm[1] : null, secao = sm ? +sm[1] : null;
+  const soltos = nums.filter((n) => n !== zona && n !== secao);
+  if (secao == null && soltos.length) secao = soltos[soltos.length - 1]; // o último número solto é a seção
+  if (zona == null && soltos.length > 1) zona = soltos[0];
+  if (secao == null) return [];
+  const pal = s.replace(/\d+/g, ' ').split(/\s+/).filter((w) => w && !PARAR.has(w));
+  const tem = (texto) => { const k = norm(texto); return pal.every((w) => k.includes(w)); };
+  const out = [];
+  const munsUf = new Set();
+  if (D.uf) {
+    for (let i = 0; i < D.n && out.length < 40; i++) {
+      if (D.sec.nr[i] !== secao) continue;
+      const li = D.sec.li[i], z = D.loc.z[li];
+      if (zona != null && z !== zona) continue;
+      const mi = D.loc.mi[li], mun = BR.munNome.get(mi) || '';
+      const [local = '', , bairro = ''] = D.nomes?.[li] || [];
+      if (pal.length && !tem(`${local} ${bairro} ${mun}`)) continue;
+      munsUf.add(mi);
+      out.push({ level: 'secao', id: i, name: `Seção ${secao} · zona ${z}`, sub: [local, bairro, `${mun}, ${D.meta.uf.toUpperCase()}`].filter(Boolean).join(' · '), peso: BR.munStat.get(mi)?.el || 0, sc: -2 });
+    }
+  }
+  // cidade digitada (de outro estado, ou do Brasil inteiro): abre o estado e vai até a seção
+  if (pal.length) {
+    for (const [cd, nome] of BR.munNome) {
+      if (munsUf.has(cd) || !tem(nome)) continue;
+      out.push({ level: 'secaoBR', id: `${cd}|${zona ?? ''}|${secao}`, name: `Seção ${secao}${zona != null ? ` · zona ${zona}` : ''}`, sub: `${nome}, ${BR.munUf.get(cd)} · abre o estado`, peso: BR.munStat.get(cd)?.el || 0, sc: -1 });
+      if (out.length > 50) break;
+    }
+  }
+  return out;
 }
