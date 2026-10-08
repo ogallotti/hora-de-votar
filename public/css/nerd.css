@@ -519,3 +519,15 @@ html.m .sheet[data-snap="peek"] .lede { display: none; } /* recolhida: título e
 .an-pontos button { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 999px; background: var(--line-2); }
 .an-pontos button[aria-pressed="true"] { background: var(--ink-2); }
 @media (prefers-reduced-motion: reduce) { .an-trilho { transition: none; } }
+
+/* anúncio sobre o mapa (desktop): canto inferior direito, em oposição à legenda; encolhe para não encostar nela */
+.an-mapa { position: absolute; z-index: 15; right: calc(var(--side-w) + 2 * var(--gap)); bottom: var(--gap);
+  width: clamp(230px, calc(100vw - var(--main-w) - var(--side-w) - 6 * var(--gap) - 270px), 340px); }
+.an-mapa:empty { display: none; }
+/* estreito (telas de 1280 a 1440): só o essencial de cada slide, para os dois terem a mesma altura baixa */
+.an-mapa { container-type: inline-size; }
+@container (max-width: 330px) { .an-extra { display: none; } .an-rot { display: none; } }
+.an-mapa .an { margin-top: 0; background: rgba(22, 21, 19, 0.92); border-style: solid; border-color: var(--line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+body.focus .an-mapa { right: var(--gap); }
+@media (max-width: 1100px) { .an-mapa { right: var(--gap); width: clamp(230px, calc(100vw - var(--main-w) - 4 * var(--gap) - 270px), 340px); } }
+html.m .an-mapa { display: none; }

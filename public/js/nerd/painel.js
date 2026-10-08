@@ -99,10 +99,10 @@ function anuncioEl() {
   if (anuncio) return anuncio;
   const slides = [
     h('a', { class: 'an-slide', href: 'mailto:anuncie@horadevotar.com?subject=Quero%20anunciar%20no%20Hora%20de%20votar', 'data-qual': 'anuncie' },
-      h('span', { class: 'an-rot' }, 'Anúncio'), h('span', { class: 'an-txt' }, h('b', null, 'Anuncie aqui.'), ' Fale com milhões de eleitores às vésperas do 2º turno.'), h('span', { class: 'an-cta' }, 'Quero anunciar')),
+      h('span', { class: 'an-rot' }, 'Anúncio'), h('span', { class: 'an-txt' }, h('b', null, 'Anuncie aqui.'), h('span', { class: 'an-extra' }, ' Fale com milhões de eleitores às vésperas do 2º turno.')), h('span', { class: 'an-cta' }, 'Quero anunciar')),
     h('a', { class: 'an-slide', href: 'https://www.instagram.com/ogallotti/', target: '_blank', rel: 'noopener', 'data-qual': 'instagram' },
       svg('svg', { class: 'an-ig', viewBox: '0 0 24 24', 'aria-hidden': 'true' }, svg('path', { d: IG, fill: 'currentColor' })),
-      h('span', { class: 'an-txt' }, 'Siga ', h('b', null, '@ogallotti'), ' no Instagram para aprender mais sobre IA.'), h('span', { class: 'an-cta' }, 'Seguir')),
+      h('span', { class: 'an-txt' }, 'Siga ', h('b', null, '@ogallotti'), ' no Instagram', h('span', { class: 'an-extra' }, ' para aprender mais sobre IA'), '.'), h('span', { class: 'an-cta' }, 'Seguir')),
   ];
   const trilho = h('div', { class: 'an-trilho' }, ...slides);
   const pontos = slides.map((_, j) => h('button', { type: 'button', 'aria-label': `Anúncio ${j + 1} de ${slides.length}`, onclick: () => vai(j) }));
@@ -142,7 +142,9 @@ export function renderMain(el, level, id, ctx) {
   frag.push(h('div', { class: 'q q-met' }, h('p', { class: 'q-l' }, 'O que o mapa mostra'), seletor(ctx)));
   if (v && v[m.k] != null) frag.push(h('div', { class: 'answer' }, h('h2', { class: 'verdict' }, ...m.frase(v[m.k], em)), h('p', { class: 'verdict-s' }, m.desc)));
   else frag.push(h('div', { class: 'answer' }, h('h2', { class: 'verdict' }, `Sem log de urna para ${nome}.`)));
-  frag.push(anuncioEl());
+  // desktop: sobre o mapa, no canto oposto à legenda; celular: na gaveta (o mapa fica atrás dela)
+  if (document.documentElement.classList.contains('m')) frag.push(anuncioEl());
+  else document.getElementById('an-mapa')?.append(anuncioEl());
   if (ctx.modo === 'uf') {
     // só no celular (no desktop os níveis ficam na barra do mapa)
     const niv = h('div', { class: 'chips niveis-m', role: 'radiogroup', 'aria-label': 'Nível do mapa' });
